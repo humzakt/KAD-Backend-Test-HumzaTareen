@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Implementation Guide — Job Scheduling API</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --cyan: #39d2c0;
+    --code-bg: #1c2128;
+    --tag-bg: #1f2937;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 0.85em;
+    line-height: 1.5;
+    margin: 12px 0;
+  }
+  pre code { background: none; padding: 0; }
+
+  /* Layout */
+  .wrapper {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  nav.sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  nav.sidebar h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+  nav.sidebar ul { list-style: none; }
+  nav.sidebar li { margin-bottom: 2px; }
+  nav.sidebar a {
+    display: block;
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    transition: background 0.15s;
+  }
+  nav.sidebar a:hover { background: var(--border); text-decoration: none; }
+  nav.sidebar a.sub { padding-left: 28px; color: var(--text-muted); font-size: 13px; }
+
+  /* Main content */
+  main {
+    flex: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 48px;
+  }
+  h1 {
+    font-size: 2.2em;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle { color: var(--text-muted); font-size: 1.1em; margin-bottom: 40px; }
+  h2 {
+    font-size: 1.6em;
+    margin-top: 48px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 1.2em; margin-top: 28px; margin-bottom: 10px; color: var(--accent); }
+  p { margin-bottom: 12px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.9em;
+  }
+  th, td {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  tr:hover td { background: var(--surface); }
+
+  /* Requirement tags */
+  .req-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .req-tag.section { background: #1a3a5c; color: var(--accent); }
+  .req-tag.pass { background: #1a3d2a; color: var(--green); }
+  .req-tag.file { background: #2d1f3d; color: var(--purple); }
+
+  /* Requirement card */
+  .req-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 16px 0;
+    border-left: 4px solid var(--accent);
+  }
+  .req-card.green { border-left-color: var(--green); }
+  .req-card h4 {
+    font-size: 1em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .req-card .files {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 0.85em;
+    color: var(--text-muted);
+  }
+  .req-card .files code {
+    color: var(--purple);
+  }
+
+  /* SVG diagrams */
+  .diagram-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 20px 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+  .diagram-container svg {
+    max-width: 100%;
+    height: auto;
+  }
+  .diagram-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* Score summary */
+  .score-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .score-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .score-item .label { font-size: 0.85em; color: var(--text-muted); }
+  .score-item .value {
+    font-size: 1.8em;
+    font-weight: 700;
+    color: var(--green);
+    margin-top: 4px;
+  }
+  .flow-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 8px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .flow-step .step-num {
+    background: var(--accent);
+    color: var(--bg);
+    min-width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85em;
+    flex-shrink: 0;
+  }
+  ul.checklist { list-style: none; padding: 0; }
+  ul.checklist li { padding: 4px 0; }
+  ul.checklist li::before { content: "\2713  "; color: var(--green); font-weight: 700; }
+
+  @media (max-width: 900px) {
+    .wrapper { flex-direction: column; }
+    nav.sidebar { width: 100%; min-width: 100%; height: auto; position: static; }
+    main { padding: 24px 16px; }
+    .score-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<!-- ─────────────── SIDEBAR ─────────────── -->
+<nav class="sidebar">
+  <h2>Implementation Guide</h2>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#results">Test Results</a></li>
+    <li><a href="#arch">Architecture</a></li>
+    <li><a href="#arch-system" class="sub">System Diagram</a></li>
+    <li><a href="#arch-state" class="sub">State Machine</a></li>
+    <li><a href="#arch-flow" class="sub">Request Flow</a></li>
+    <li><a href="#arch-thread" class="sub">Threading Bridge</a></li>
+    <li><a href="#mapping">Requirement Mapping</a></li>
+    <li><a href="#s41" class="sub">&sect;4.1 HTTP REST API</a></li>
+    <li><a href="#s42" class="sub">&sect;4.2 Auth &amp; Authz</a></li>
+    <li><a href="#s43" class="sub">&sect;4.3 State Machine</a></li>
+    <li><a href="#s44" class="sub">&sect;4.4 Validation</a></li>
+    <li><a href="#s45" class="sub">&sect;4.5 Atomic Overlap</a></li>
+    <li><a href="#s46" class="sub">&sect;4.6 Idempotency</a></li>
+    <li><a href="#s47" class="sub">&sect;4.7 MQTT</a></li>
+    <li><a href="#s48" class="sub">&sect;4.8 WebSocket</a></li>
+    <li><a href="#s6" class="sub">&sect;6 Technical Exp.</a></li>
+    <li><a href="#walkthrough">Code Walkthrough</a></li>
+    <li><a href="#walk-const" class="sub">Constants</a></li>
+    <li><a href="#walk-config" class="sub">Configuration</a></li>
+    <li><a href="#walk-models" class="sub">Models</a></li>
+    <li><a href="#walk-providers" class="sub">Provider Protocols</a></li>
+    <li><a href="#walk-services" class="sub">Service Layer</a></li>
+    <li><a href="#walk-api" class="sub">API Layer</a></li>
+    <li><a href="#walk-app" class="sub">App Assembly</a></li>
+    <li><a href="#walk-tests" class="sub">Tests</a></li>
+    <li><a href="#verify">verify.py Output</a></li>
+    <li><a href="#macos">macOS Notes</a></li>
+  </ul>
+</nav>
+
+<!-- ─────────────── MAIN ─────────────── -->
+<main>
+
+<!-- ============== OVERVIEW ============== -->
+<h1 id="overview">Implementation Guide</h1>
+<p class="subtitle">Job Scheduling API &mdash; KAD Global Agency Backend Exercise</p>
+
+<p>
+  This document is a comprehensive walkthrough of the implementation.
+  Every requirement from the exercise PDF is mapped to the specific files and
+  code that fulfils it, with architectural diagrams and explanations.
+</p>
+
+<!-- ============== RESULTS ============== -->
+<h2 id="results">Test Results</h2>
+
+<div class="score-grid">
+  <div class="score-item">
+    <div class="label">verify.py Scenarios</div>
+    <div class="value">23 / 23</div>
+  </div>
+  <div class="score-item">
+    <div class="label">Custom pytest Tests</div>
+    <div class="value">3 / 3</div>
+  </div>
+  <div class="score-item">
+    <div class="label">Source Files</div>
+    <div class="value">20</div>
+  </div>
+  <div class="score-item">
+    <div class="label">Architecture</div>
+    <div class="value">SOLID</div>
+  </div>
+</div>
+
+<!-- ============== ARCHITECTURE ============== -->
+<h2 id="arch">Architecture Diagrams</h2>
+
+<!-- --- System Diagram --- -->
+<h3 id="arch-system">System Overview</h3>
+<div class="diagram-container">
+<svg viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, BlinkMacSystemFont, sans-serif">
+  <!-- Background regions -->
+  <rect x="20" y="10" width="860" height="500" rx="16" fill="#161b22" stroke="#30363d"/>
+
+  <!-- Clients region -->
+  <rect x="40" y="30" width="200" height="160" rx="10" fill="#1c2128" stroke="#30363d"/>
+  <text x="140" y="55" text-anchor="middle" font-size="11" fill="#8b949e" font-weight="600">CLIENTS</text>
+  <rect x="65" y="70" width="150" height="40" rx="6" fill="#1a3a5c" stroke="#58a6ff"/>
+  <text x="140" y="95" text-anchor="middle" font-size="13" fill="#58a6ff" font-weight="600">HTTP Operator</text>
+  <rect x="65" y="125" width="150" height="40" rx="6" fill="#2d1f3d" stroke="#bc8cff"/>
+  <text x="140" y="150" text-anchor="middle" font-size="13" fill="#bc8cff" font-weight="600">Socket.IO Client</text>
+
+  <!-- Service region -->
+  <rect x="300" y="30" width="340" height="460" rx="10" fill="#1c2128" stroke="#30363d"/>
+  <text x="470" y="55" text-anchor="middle" font-size="11" fill="#8b949e" font-weight="600">JOB SCHEDULING SERVICE (:8000)</text>
+
+  <rect x="320" y="70" width="300" height="38" rx="6" fill="#0d4429" stroke="#3fb950"/>
+  <text x="470" y="94" text-anchor="middle" font-size="12" fill="#3fb950" font-weight="600">FastAPI Routes + Error Handlers</text>
+
+  <rect x="320" y="122" width="300" height="38" rx="6" fill="#1a3a5c" stroke="#58a6ff"/>
+  <text x="470" y="146" text-anchor="middle" font-size="12" fill="#58a6ff" font-weight="600">JobOrchestrator</text>
+
+  <rect x="320" y="174" width="140" height="36" rx="6" fill="#3d2d1f" stroke="#d29922"/>
+  <text x="390" y="197" text-anchor="middle" font-size="11" fill="#d29922" font-weight="600">ValidationService</text>
+
+  <rect x="480" y="174" width="140" height="36" rx="6" fill="#3d2d1f" stroke="#d29922"/>
+  <text x="550" y="197" text-anchor="middle" font-size="11" fill="#d29922" font-weight="600">AuthService</text>
+
+  <rect x="320" y="226" width="300" height="38" rx="6" fill="#2d1f3d" stroke="#bc8cff"/>
+  <text x="470" y="250" text-anchor="middle" font-size="12" fill="#bc8cff" font-weight="600">SQLiteJobRepository</text>
+
+  <rect x="320" y="280" width="300" height="38" rx="6" fill="#1f3d3d" stroke="#39d2c0"/>
+  <text x="470" y="304" text-anchor="middle" font-size="12" fill="#39d2c0" font-weight="600">MQTTBrokerService</text>
+
+  <rect x="320" y="334" width="300" height="38" rx="6" fill="#2d1f3d" stroke="#bc8cff"/>
+  <text x="470" y="358" text-anchor="middle" font-size="12" fill="#bc8cff" font-weight="600">SocketIONotifierService</text>
+
+  <rect x="320" y="390" width="300" height="36" rx="6" fill="#161b22" stroke="#30363d" stroke-dasharray="5,3"/>
+  <text x="470" y="413" text-anchor="middle" font-size="11" fill="#8b949e">ServiceRegistry (wires all above)</text>
+
+  <rect x="320" y="440" width="300" height="36" rx="6" fill="#161b22" stroke="#30363d" stroke-dasharray="5,3"/>
+  <text x="470" y="463" text-anchor="middle" font-size="11" fill="#8b949e">Constants + Logger + Config</text>
+
+  <!-- Infrastructure region -->
+  <rect x="700" y="30" width="160" height="460" rx="10" fill="#1c2128" stroke="#30363d"/>
+  <text x="780" y="55" text-anchor="middle" font-size="11" fill="#8b949e" font-weight="600">INFRASTRUCTURE</text>
+
+  <rect x="720" y="220" width="120" height="50" rx="6" fill="#3d1f1f" stroke="#f85149"/>
+  <text x="780" y="242" text-anchor="middle" font-size="12" fill="#f85149" font-weight="600">SQLite</text>
+  <text x="780" y="258" text-anchor="middle" font-size="10" fill="#8b949e">jobs.db (WAL)</text>
+
+  <rect x="720" y="290" width="120" height="50" rx="6" fill="#1f3d3d" stroke="#39d2c0"/>
+  <text x="780" y="312" text-anchor="middle" font-size="12" fill="#39d2c0" font-weight="600">Mosquitto</text>
+  <text x="780" y="328" text-anchor="middle" font-size="10" fill="#8b949e">MQTT :1883</text>
+
+  <rect x="720" y="360" width="120" height="50" rx="6" fill="#3d2d1f" stroke="#d29922"/>
+  <text x="780" y="382" text-anchor="middle" font-size="12" fill="#d29922" font-weight="600">Worker</text>
+  <text x="780" y="398" text-anchor="middle" font-size="10" fill="#8b949e">Docker Container</text>
+
+  <!-- Arrows -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 z" fill="#58a6ff"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 z" fill="#3fb950"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 z" fill="#bc8cff"/>
+    </marker>
+    <marker id="arrow-cyan" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 z" fill="#39d2c0"/>
+    </marker>
+  </defs>
+
+  <!-- Client -> FastAPI -->
+  <line x1="215" y1="90" x2="318" y2="89" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="262" y="82" text-anchor="middle" font-size="9" fill="#58a6ff">REST</text>
+
+  <!-- FastAPI -> Orchestrator -->
+  <line x1="470" y1="108" x2="470" y2="120" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- Orchestrator -> Validation -->
+  <line x1="420" y1="160" x2="390" y2="172" stroke="#d29922" stroke-width="1.5"/>
+
+  <!-- Orchestrator -> Repo -->
+  <line x1="470" y1="160" x2="470" y2="224" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+
+  <!-- Repo -> SQLite -->
+  <line x1="620" y1="245" x2="718" y2="245" stroke="#f85149" stroke-width="1.5"/>
+
+  <!-- Orchestrator -> Broker -->
+  <line x1="500" y1="160" x2="520" y2="278" stroke="#39d2c0" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+  <!-- Broker -> Mosquitto -->
+  <line x1="620" y1="299" x2="718" y2="315" stroke="#39d2c0" stroke-width="2" marker-end="url(#arrow-cyan)"/>
+  <text x="665" y="295" text-anchor="middle" font-size="9" fill="#39d2c0">dispatch</text>
+
+  <!-- Mosquitto -> Broker -->
+  <line x1="718" y1="322" x2="620" y2="306" stroke="#39d2c0" stroke-width="2" marker-end="url(#arrow-cyan)"/>
+  <text x="665" y="320" text-anchor="middle" font-size="9" fill="#39d2c0">result</text>
+
+  <!-- Mosquitto <-> Worker -->
+  <line x1="780" y1="340" x2="780" y2="358" stroke="#d29922" stroke-width="1.5"/>
+
+  <!-- Broker -> Notifier -->
+  <line x1="470" y1="318" x2="470" y2="332" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <text x="505" y="328" font-size="8" fill="#8b949e">thread bridge</text>
+
+  <!-- Notifier -> Socket.IO Client -->
+  <line x1="318" y1="353" x2="215" y2="145" stroke="#bc8cff" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <text x="255" y="260" text-anchor="middle" font-size="9" fill="#bc8cff">job_update</text>
+</svg>
+<div class="diagram-label">System Architecture &mdash; arrows show data flow direction</div>
+</div>
+
+<!-- --- State Machine --- -->
+<h3 id="arch-state">Job State Machine</h3>
+<div class="diagram-container">
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, BlinkMacSystemFont, sans-serif">
+  <!-- Start -->
+  <circle cx="60" cy="150" r="16" fill="#58a6ff" stroke="#58a6ff"/>
+  <text x="60" y="155" text-anchor="middle" font-size="11" fill="#0d1117" font-weight="700">S</text>
+
+  <!-- PENDING -->
+  <rect x="130" y="120" width="130" height="60" rx="10" fill="#1a3a5c" stroke="#58a6ff" stroke-width="2"/>
+  <text x="195" y="148" text-anchor="middle" font-size="14" fill="#58a6ff" font-weight="700">PENDING</text>
+  <text x="195" y="165" text-anchor="middle" font-size="9" fill="#8b949e">Initial state</text>
+
+  <!-- RUNNING -->
+  <rect x="330" y="120" width="130" height="60" rx="10" fill="#3d2d1f" stroke="#d29922" stroke-width="2"/>
+  <text x="395" y="148" text-anchor="middle" font-size="14" fill="#d29922" font-weight="700">RUNNING</text>
+  <text x="395" y="165" text-anchor="middle" font-size="9" fill="#8b949e">Worker processing</text>
+
+  <!-- COMPLETED -->
+  <rect x="540" y="50" width="140" height="60" rx="10" fill="#0d4429" stroke="#3fb950" stroke-width="2"/>
+  <text x="610" y="78" text-anchor="middle" font-size="14" fill="#3fb950" font-weight="700">COMPLETED</text>
+  <text x="610" y="95" text-anchor="middle" font-size="9" fill="#8b949e">Terminal</text>
+
+  <!-- FAILED -->
+  <rect x="540" y="190" width="140" height="60" rx="10" fill="#3d1f1f" stroke="#f85149" stroke-width="2"/>
+  <text x="610" y="218" text-anchor="middle" font-size="14" fill="#f85149" font-weight="700">FAILED</text>
+  <text x="610" y="235" text-anchor="middle" font-size="9" fill="#8b949e">Terminal + error_msg</text>
+
+  <!-- Arrows -->
+  <defs>
+    <marker id="ah" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 z" fill="#c9d1d9"/>
+    </marker>
+  </defs>
+
+  <!-- Start -> PENDING -->
+  <line x1="76" y1="150" x2="128" y2="150" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="100" y="142" text-anchor="middle" font-size="8" fill="#58a6ff">POST 201</text>
+
+  <!-- PENDING -> RUNNING -->
+  <line x1="260" y1="150" x2="328" y2="150" stroke="#c9d1d9" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- PENDING -> COMPLETED (arc up) -->
+  <path d="M 260 130 Q 400 30 538 80" fill="none" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- PENDING -> FAILED (arc down) -->
+  <path d="M 260 170 Q 400 270 538 220" fill="none" stroke="#f85149" stroke-width="1.5"/>
+
+  <!-- RUNNING -> COMPLETED -->
+  <line x1="460" y1="135" x2="538" y2="90" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- RUNNING -> FAILED -->
+  <line x1="460" y1="165" x2="538" y2="205" stroke="#f85149" stroke-width="1.5"/>
+
+  <!-- Legend -->
+  <rect x="20" y="260" width="680" height="30" rx="6" fill="#1c2128" stroke="#30363d"/>
+  <text x="40" y="280" font-size="10" fill="#8b949e">Transitions driven only by MQTT messages from worker. Invalid transitions (e.g. COMPLETED&rarr;RUNNING) are logged and ignored.</text>
+</svg>
+<div class="diagram-label">State Machine &mdash; PDF &sect;4.3</div>
+</div>
+
+<!-- --- Request Flow --- -->
+<h3 id="arch-flow">Job Submission Flow</h3>
+<div class="diagram-container">
+<svg viewBox="0 0 880 640" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, BlinkMacSystemFont, sans-serif">
+  <!-- Lifelines -->
+  <text x="80" y="25" text-anchor="middle" font-size="11" fill="#58a6ff" font-weight="600">Operator</text>
+  <text x="220" y="25" text-anchor="middle" font-size="11" fill="#3fb950" font-weight="600">Routes</text>
+  <text x="370" y="25" text-anchor="middle" font-size="11" fill="#d29922" font-weight="600">Orchestrator</text>
+  <text x="520" y="25" text-anchor="middle" font-size="11" fill="#bc8cff" font-weight="600">Repository</text>
+  <text x="660" y="25" text-anchor="middle" font-size="11" fill="#39d2c0" font-weight="600">Broker</text>
+  <text x="800" y="25" text-anchor="middle" font-size="11" fill="#f85149" font-weight="600">Worker</text>
+
+  <line x1="80" y1="35" x2="80" y2="620" stroke="#30363d" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="220" y1="35" x2="220" y2="620" stroke="#30363d" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="370" y1="35" x2="370" y2="620" stroke="#30363d" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="520" y1="35" x2="520" y2="620" stroke="#30363d" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="660" y1="35" x2="660" y2="620" stroke="#30363d" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="800" y1="35" x2="800" y2="620" stroke="#30363d" stroke-width="1" stroke-dasharray="4,3"/>
+
+  <!-- Step 1: POST -->
+  <line x1="80" y1="60" x2="218" y2="60" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="150" y="54" text-anchor="middle" font-size="9" fill="#58a6ff">POST /api/jobs</text>
+
+  <!-- Step 2: Auth check -->
+  <rect x="180" y="72" width="80" height="24" rx="4" fill="#0d4429" stroke="#3fb950"/>
+  <text x="220" y="88" text-anchor="middle" font-size="9" fill="#3fb950">Auth (401?)</text>
+
+  <!-- Step 3: Idem-key check -->
+  <rect x="180" y="104" width="80" height="24" rx="4" fill="#0d4429" stroke="#3fb950"/>
+  <text x="220" y="120" text-anchor="middle" font-size="9" fill="#3fb950">Key (400?)</text>
+
+  <!-- Step 4: Delegate -->
+  <line x1="220" y1="140" x2="368" y2="140" stroke="#d29922" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="294" y="134" text-anchor="middle" font-size="9" fill="#d29922">create_job()</text>
+
+  <!-- Step 5: Idempotency lookup -->
+  <line x1="370" y1="165" x2="518" y2="165" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <text x="444" y="159" text-anchor="middle" font-size="9" fill="#bc8cff">find_by_idempotency_key()</text>
+
+  <line x1="518" y1="180" x2="372" y2="180" stroke="#bc8cff" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arrow-purple)"/>
+  <text x="444" y="175" text-anchor="middle" font-size="8" fill="#8b949e">None (new key)</text>
+
+  <!-- Step 6: Validation -->
+  <rect x="330" y="198" width="80" height="24" rx="4" fill="#3d2d1f" stroke="#d29922"/>
+  <text x="370" y="214" text-anchor="middle" font-size="9" fill="#d29922">validate()</text>
+  <text x="445" y="214" font-size="8" fill="#8b949e">422 on failure</text>
+
+  <!-- Step 7: Atomic overlap -->
+  <line x1="370" y1="240" x2="518" y2="240" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <text x="444" y="234" text-anchor="middle" font-size="9" fill="#bc8cff">insert_if_no_overlap()</text>
+
+  <rect x="480" y="252" width="80" height="40" rx="4" fill="#2d1f3d" stroke="#bc8cff"/>
+  <text x="520" y="267" text-anchor="middle" font-size="8" fill="#bc8cff">BEGIN IMMEDIATE</text>
+  <text x="520" y="279" text-anchor="middle" font-size="8" fill="#bc8cff">overlap? INSERT</text>
+  <text x="520" y="289" text-anchor="middle" font-size="8" fill="#8b949e">409 if overlap</text>
+
+  <line x1="518" y1="305" x2="372" y2="305" stroke="#bc8cff" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arrow-purple)"/>
+  <text x="444" y="300" text-anchor="middle" font-size="8" fill="#8b949e">job dict</text>
+
+  <!-- Step 8: Dispatch -->
+  <line x1="370" y1="325" x2="658" y2="325" stroke="#39d2c0" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+  <text x="514" y="319" text-anchor="middle" font-size="9" fill="#39d2c0">publish_dispatch(job)</text>
+
+  <line x1="660" y1="342" x2="798" y2="342" stroke="#39d2c0" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+  <text x="730" y="336" text-anchor="middle" font-size="9" fill="#39d2c0">jobs/dispatch</text>
+
+  <!-- Step 9: Return 201 -->
+  <line x1="370" y1="370" x2="222" y2="370" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <line x1="220" y1="385" x2="82" y2="385" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <text x="150" y="379" text-anchor="middle" font-size="9" fill="#3fb950">201 + job JSON</text>
+
+  <!-- Async: worker processes -->
+  <rect x="20" y="410" width="840" height="4" rx="2" fill="#30363d"/>
+  <text x="440" y="430" text-anchor="middle" font-size="10" fill="#8b949e" font-style="italic">Asynchronous (worker processes in background)</text>
+
+  <!-- Worker -> RUNNING -->
+  <line x1="800" y1="450" x2="662" y2="450" stroke="#f85149" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="730" y="444" text-anchor="middle" font-size="9" fill="#f85149">RUNNING</text>
+
+  <line x1="660" y1="465" x2="522" y2="465" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <text x="590" y="459" text-anchor="middle" font-size="9" fill="#bc8cff">update_state()</text>
+
+  <!-- Notifier -->
+  <text x="440" y="490" text-anchor="middle" font-size="9" fill="#d29922">asyncio.run_coroutine_threadsafe()</text>
+  <rect x="40" y="495" width="160" height="24" rx="4" fill="#2d1f3d" stroke="#bc8cff"/>
+  <text x="120" y="511" text-anchor="middle" font-size="9" fill="#bc8cff">Socket.IO: job_update</text>
+
+  <!-- Worker -> COMPLETED -->
+  <line x1="800" y1="540" x2="662" y2="540" stroke="#f85149" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="730" y="534" text-anchor="middle" font-size="9" fill="#f85149">COMPLETED</text>
+
+  <line x1="660" y1="555" x2="522" y2="555" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <text x="590" y="549" text-anchor="middle" font-size="9" fill="#bc8cff">update_state()</text>
+
+  <rect x="40" y="575" width="160" height="24" rx="4" fill="#0d4429" stroke="#3fb950"/>
+  <text x="120" y="591" text-anchor="middle" font-size="9" fill="#3fb950">Socket.IO: job_update</text>
+</svg>
+<div class="diagram-label">End-to-end request flow for POST /api/jobs through to worker completion</div>
+</div>
+
+<!-- --- Threading Bridge --- -->
+<h3 id="arch-thread">MQTT &harr; Socket.IO Threading Bridge</h3>
+<div class="diagram-container">
+<svg viewBox="0 0 760 250" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, BlinkMacSystemFont, sans-serif">
+  <!-- paho thread -->
+  <rect x="20" y="20" width="320" height="200" rx="10" fill="#1c2128" stroke="#39d2c0" stroke-width="2"/>
+  <text x="180" y="45" text-anchor="middle" font-size="12" fill="#39d2c0" font-weight="600">paho-mqtt Background Thread</text>
+
+  <rect x="40" y="60" width="280" height="32" rx="6" fill="#1f3d3d" stroke="#39d2c0"/>
+  <text x="180" y="81" text-anchor="middle" font-size="11" fill="#39d2c0">on_message(msg)</text>
+
+  <rect x="40" y="102" width="280" height="32" rx="6" fill="#3d2d1f" stroke="#d29922"/>
+  <text x="180" y="123" text-anchor="middle" font-size="11" fill="#d29922">validate state transition</text>
+
+  <rect x="40" y="144" width="280" height="32" rx="6" fill="#2d1f3d" stroke="#bc8cff"/>
+  <text x="180" y="165" text-anchor="middle" font-size="11" fill="#bc8cff">repo.update_state() (SQLite)</text>
+
+  <rect x="40" y="186" width="280" height="24" rx="6" fill="#3d1f1f" stroke="#f85149"/>
+  <text x="180" y="203" text-anchor="middle" font-size="10" fill="#f85149">call on_result(updated_job)</text>
+
+  <!-- Bridge arrow -->
+  <line x1="340" y1="130" x2="420" y2="130" stroke="#58a6ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="380" y="118" text-anchor="middle" font-size="8" fill="#58a6ff" font-weight="600">THREAD</text>
+  <text x="380" y="148" text-anchor="middle" font-size="8" fill="#58a6ff" font-weight="600">BOUNDARY</text>
+
+  <!-- asyncio loop -->
+  <rect x="420" y="20" width="320" height="200" rx="10" fill="#1c2128" stroke="#58a6ff" stroke-width="2"/>
+  <text x="580" y="45" text-anchor="middle" font-size="12" fill="#58a6ff" font-weight="600">asyncio Event Loop (uvicorn)</text>
+
+  <rect x="440" y="70" width="280" height="40" rx="6" fill="#1a3a5c" stroke="#58a6ff"/>
+  <text x="580" y="88" text-anchor="middle" font-size="10" fill="#58a6ff">asyncio.run_coroutine_threadsafe(</text>
+  <text x="580" y="101" text-anchor="middle" font-size="10" fill="#58a6ff">  notifier.notify_job_update(), loop)</text>
+
+  <rect x="440" y="122" width="280" height="32" rx="6" fill="#2d1f3d" stroke="#bc8cff"/>
+  <text x="580" y="143" text-anchor="middle" font-size="11" fill="#bc8cff">sio.emit("job_update", payload)</text>
+
+  <rect x="440" y="166" width="280" height="32" rx="6" fill="#0d4429" stroke="#3fb950"/>
+  <text x="580" y="187" text-anchor="middle" font-size="11" fill="#3fb950">Delivered to user's room only</text>
+</svg>
+<div class="diagram-label">The critical threading boundary between paho-mqtt and asyncio Socket.IO &mdash; PDF &sect;7 "real gotcha"</div>
+</div>
+
+
+<!-- ============== REQUIREMENT MAPPING ============== -->
+<h2 id="mapping">Assessment Requirement &rarr; Code Mapping</h2>
+<p>
+  Each requirement from the exercise PDF is listed below with the exact files
+  and functions that implement it.
+</p>
+
+<!-- §4.1 -->
+<h3 id="s41">&sect;4.1 HTTP REST API</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.1</span> GET /health returns 200 with {"status":"ok"}</h4>
+  <p>Health endpoint with no auth requirement.</p>
+  <div class="files">
+    <code>service/api/routes.py</code> &mdash; <code>health()</code> function (line 23)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.1</span> POST /api/jobs &mdash; submit a new job (201)</h4>
+  <p>Requires <code>Idempotency-Key</code> header. Delegates to <code>JobOrchestrator.create_job()</code>.</p>
+  <div class="files">
+    <code>service/api/routes.py</code> &mdash; <code>create_job()</code> (line 47)<br>
+    <code>service/services/job_orchestrator.py</code> &mdash; <code>JobOrchestrator.create_job()</code> (line 41)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.1</span> GET /api/jobs/{id} &mdash; read a single job (200/404)</h4>
+  <p>Returns 404 if job doesn't exist <strong>or belongs to another user</strong>.</p>
+  <div class="files">
+    <code>service/api/routes.py</code> &mdash; <code>get_job()</code> (line 34)<br>
+    <code>service/services/job_repository.py</code> &mdash; <code>find_by_id()</code> (line 146) &mdash; SQL: <code>WHERE id = ? AND user_id = ?</code>
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.1</span> GET /api/jobs &mdash; list caller's jobs only (200)</h4>
+  <p>Always 200; empty list if none.</p>
+  <div class="files">
+    <code>service/api/routes.py</code> &mdash; <code>list_jobs()</code> (line 28)<br>
+    <code>service/services/job_repository.py</code> &mdash; <code>list_by_user()</code> (line 158) &mdash; SQL: <code>WHERE user_id = ?</code>
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.1</span> HTTP Status Code Matrix (400 / 401 / 404 / 409 / 422)</h4>
+  <p>
+    <strong>400</strong>: Malformed JSON, bad timestamps (Pydantic errors remapped), missing/too-long Idempotency-Key.<br>
+    <strong>401</strong>: Missing or invalid Bearer token.<br>
+    <strong>404</strong>: Job not found or cross-user access.<br>
+    <strong>409</strong>: Overlapping time window on same asset.<br>
+    <strong>422</strong>: Business rule violation (unknown asset, past start_time, bad duration, etc.).
+  </p>
+  <div class="files">
+    <code>service/api/error_handlers.py</code> &mdash; remaps Pydantic <code>RequestValidationError</code> from 422 to <strong>400</strong> (line 19)<br>
+    <code>service/api/dependencies.py</code> &mdash; <code>get_current_user()</code> raises <strong>401</strong> (line 29)<br>
+    <code>service/api/routes.py</code> &mdash; <strong>404</strong> on missing job (line 40), <strong>400</strong> on missing key (line 55)<br>
+    <code>service/services/validation_service.py</code> &mdash; returns <strong>422</strong> for each business rule (lines 41-63)<br>
+    <code>service/services/job_orchestrator.py</code> &mdash; returns <strong>409</strong> on overlap (line 83)<br>
+    <code>service/constants.py</code> &mdash; all status codes are named constants (lines 13-19)
+  </div>
+</div>
+
+<!-- §4.2 -->
+<h3 id="s42">&sect;4.2 Authentication &amp; Authorization</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.2</span> Bearer token auth on all /api/* endpoints</h4>
+  <p>Tokens from <code>seed.json</code>. All API routes use <code>Depends(get_current_user)</code>.</p>
+  <div class="files">
+    <code>service/api/dependencies.py</code> &mdash; <code>get_current_user()</code> (line 29) &mdash; extracts <code>Bearer</code> prefix, resolves via <code>AuthProvider</code><br>
+    <code>service/services/auth_service.py</code> &mdash; <code>TokenAuthService.authenticate()</code> (line 21) &mdash; looks up <code>USERS_BY_TOKEN</code><br>
+    <code>service/config.py</code> &mdash; <code>USERS_BY_TOKEN</code> dict built from <code>seed.json</code> (line 22)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.2</span> Cross-user access returns 404 (not 200/403)</h4>
+  <p>Bob reading Alice's job returns 404 because the SQL query includes <code>AND user_id = ?</code>.</p>
+  <div class="files">
+    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_FIND_BY_ID</code> (line 68): <code>WHERE id = ? AND user_id = ?</code><br>
+    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_LIST_BY_USER</code> (line 70): <code>WHERE user_id = ?</code>
+  </div>
+</div>
+
+<!-- §4.3 -->
+<h3 id="s43">&sect;4.3 State Machine</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.3</span> Four states: PENDING, RUNNING, COMPLETED, FAILED</h4>
+  <p>Enum-backed states with transition guard. Invalid transitions are logged and silently ignored.</p>
+  <div class="files">
+    <code>service/models.py</code> &mdash; <code>JobState</code> enum (line 25), <code>VALID_TRANSITIONS</code> dict (line 32), <code>is_valid_transition()</code> guard (line 38)<br>
+    <code>service/constants.py</code> &mdash; <code>STATE_PENDING</code>, <code>STATE_RUNNING</code>, <code>STATE_COMPLETED</code>, <code>STATE_FAILED</code> (lines 69-72)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.3</span> Invalid transitions ignored (logged, not crashed)</h4>
+  <p>Unknown job_ids from MQTT are also logged and ignored.</p>
+  <div class="files">
+    <code>service/services/broker_service.py</code> &mdash; <code>_on_message()</code> (line 91):<br>
+    &bull; Unknown <code>job_id</code> &rarr; log warning, return (line 108)<br>
+    &bull; Invalid transition &rarr; log warning, return (line 115)<br>
+    &bull; Malformed JSON &rarr; log warning, return (line 97)
+  </div>
+</div>
+
+<!-- §4.4 -->
+<h3 id="s44">&sect;4.4 Business-Rule Validation</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.4</span> All 6 validation rules enforced</h4>
+  <table>
+    <tr><th>Rule</th><th>Code Location</th><th>Status Code</th></tr>
+    <tr>
+      <td><code>asset_id</code> must exist in seed.json</td>
+      <td><code>validation_service.py</code> line 41</td>
+      <td>422</td>
+    </tr>
+    <tr>
+      <td><code>start_time</code> must be in the future</td>
+      <td><code>validation_service.py</code> line 47</td>
+      <td>422</td>
+    </tr>
+    <tr>
+      <td><code>start_time &lt; end_time</code></td>
+      <td><code>validation_service.py</code> line 50</td>
+      <td>422</td>
+    </tr>
+    <tr>
+      <td>Duration &ge; 15 min, &le; 4 hours</td>
+      <td><code>validation_service.py</code> lines 53-57</td>
+      <td>422</td>
+    </tr>
+    <tr>
+      <td><code>operation</code> non-empty, &le; 64 chars</td>
+      <td><code>validation_service.py</code> line 59</td>
+      <td>422</td>
+    </tr>
+    <tr>
+      <td>Max 10 active (PENDING+RUNNING) jobs per user</td>
+      <td><code>validation_service.py</code> line 62</td>
+      <td>422</td>
+    </tr>
+  </table>
+  <div class="files">
+    <code>service/services/validation_service.py</code> &mdash; <code>JobValidationService.validate()</code> (line 31)<br>
+    <code>service/constants.py</code> &mdash; all limits: <code>MAX_ACTIVE_JOBS_PER_USER=10</code>, <code>MIN_JOB_DURATION=15min</code>, <code>MAX_JOB_DURATION=4h</code>, <code>OPERATION_MAX_LENGTH=64</code><br>
+    <code>service/constants.py</code> &mdash; <code>ErrorMessages</code> class (line 91) &mdash; all error message templates
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.4</span> ISO-8601 timestamp parsing (400 on bad format)</h4>
+  <p>Pydantic's <code>datetime</code> field handles parsing. Invalid timestamps produce <code>RequestValidationError</code>, remapped to <strong>400</strong>.</p>
+  <div class="files">
+    <code>service/models.py</code> &mdash; <code>JobCreate.start_time</code> and <code>end_time</code> are <code>datetime</code> fields (lines 53-54)<br>
+    <code>service/api/error_handlers.py</code> &mdash; <code>RequestValidationError</code> &rarr; 400 (line 19)
+  </div>
+</div>
+
+<!-- §4.5 -->
+<h3 id="s45">&sect;4.5 Atomic Overlap Check</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.5</span> Half-open interval overlap: [start, end)</h4>
+  <p>SQL: <code>WHERE start_time &lt; ? AND end_time &gt; ?</code> (comparing against proposed end and start).</p>
+  <div class="files">
+    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_CHECK_OVERLAP</code> (line 55): checks active jobs on same <code>asset_id</code> with overlapping windows<br>
+    <code>service/services/job_repository.py</code> &mdash; <code>insert_if_no_overlap()</code> (line 112): atomic check+insert inside <code>BEGIN IMMEDIATE</code>
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.5</span> 10 concurrent requests &rarr; exactly 1&times;201, 9&times;409</h4>
+  <p>
+    <code>BEGIN IMMEDIATE</code> acquires SQLite's write lock at transaction start.
+    Concurrent callers block on <code>busy_timeout</code>, then see the committed state.
+  </p>
+  <div class="files">
+    <code>service/services/job_repository.py</code> &mdash; <code>insert_if_no_overlap()</code> (line 114): <code>conn.execute("BEGIN IMMEDIATE")</code><br>
+    <code>service/services/job_repository.py</code> &mdash; <code>SQLITE_BUSY_TIMEOUT_MS = 5000</code> via <code>constants.py</code> line 84<br>
+    <code>tests/test_core.py</code> &mdash; <code>test_atomic_overlap_exactly_one_wins()</code> (line 54) &mdash; fires 10 parallel async requests
+  </div>
+</div>
+
+<!-- §4.6 -->
+<h3 id="s46">&sect;4.6 Idempotency</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.6</span> Same (user_id, Idempotency-Key) returns same job</h4>
+  <p>UNIQUE constraint + pre-check before insert. First body is canonical (no replay-body matching).</p>
+  <div class="files">
+    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_CREATE_TABLE</code> (line 42): <code>UNIQUE(user_id, idempotency_key)</code><br>
+    <code>service/services/job_repository.py</code> &mdash; <code>find_by_idempotency_key()</code> (line 100)<br>
+    <code>service/services/job_orchestrator.py</code> &mdash; idempotent replay check (line 52): returns existing job with 201<br>
+    <code>tests/test_core.py</code> &mdash; <code>test_idempotency_same_key_returns_same_job()</code> (line 30)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.6</span> Key scoped per user (cross-user key collision creates independent jobs)</h4>
+  <p>The UNIQUE constraint is on <code>(user_id, idempotency_key)</code>, not <code>idempotency_key</code> alone.</p>
+  <div class="files">
+    <code>service/services/job_repository.py</code> &mdash; <code>UNIQUE(user_id, idempotency_key)</code> (line 42)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.6</span> Missing or too-long key returns 400</h4>
+  <div class="files">
+    <code>service/api/routes.py</code> &mdash; empty check (line 54), length check (line 59)<br>
+    <code>service/constants.py</code> &mdash; <code>IDEMPOTENCY_KEY_MAX_LENGTH = 100</code> (line 31)
+  </div>
+</div>
+
+<!-- §4.7 -->
+<h3 id="s47">&sect;4.7 MQTT Integration</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.7</span> Publish dispatch with 5-field payload after persistence</h4>
+  <p>Payload: <code>{job_id, asset_id, start_time, end_time, operation}</code>. Published <em>only after</em> successful commit.</p>
+  <div class="files">
+    <code>service/services/broker_service.py</code> &mdash; <code>publish_dispatch()</code> (line 64): builds 5-field payload, publishes to <code>jobs/dispatch</code><br>
+    <code>service/services/job_orchestrator.py</code> &mdash; dispatch called after <code>insert_if_no_overlap()</code> returns successfully (line 86)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.7</span> Subscribe to jobs/result and process state transitions</h4>
+  <div class="files">
+    <code>service/services/broker_service.py</code> &mdash; <code>_on_connect()</code> (line 81): subscribes to <code>jobs/result</code><br>
+    <code>service/services/broker_service.py</code> &mdash; <code>_on_message()</code> (line 91): validates transition, updates state, invokes callback
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.7</span> Unknown job_id &rarr; log and ignore</h4>
+  <div class="files">
+    <code>service/services/broker_service.py</code> &mdash; line 108: <code>log.warning(f"result for unknown job_id={job_id}")</code> + <code>return</code>
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.7</span> Invalid transition &rarr; log and ignore</h4>
+  <div class="files">
+    <code>service/services/broker_service.py</code> &mdash; line 111-116: calls <code>is_valid_transition()</code>, logs warning + returns if invalid
+  </div>
+</div>
+
+<!-- §4.8 -->
+<h3 id="s48">&sect;4.8 WebSocket Real-Time Updates</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.8</span> Socket.IO at /socket.io/ with token-based auth</h4>
+  <p>Token via query string: <code>?token=&lt;bearer&gt;</code>. Invalid token &rarr; <code>ConnectionRefusedError</code>.</p>
+  <div class="files">
+    <code>service/services/notifier_service.py</code> &mdash; <code>connect</code> handler (line 30): parses <code>QUERY_STRING</code>, validates token against <code>USERS_BY_TOKEN</code>
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.8</span> Per-user rooms: events scoped to owner only</h4>
+  <p>Room name: <code>user:&lt;user_id&gt;</code>. Bob never receives Alice's events.</p>
+  <div class="files">
+    <code>service/services/notifier_service.py</code> &mdash; <code>enter_room(sid, room)</code> (line 42), <code>notify_job_update()</code> emits to room only (line 52)<br>
+    <code>service/constants.py</code> &mdash; <code>SOCKETIO_ROOM_PREFIX = "user:"</code> (line 62)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;4.8</span> Event: job_update with {job_id, state, timestamp}</h4>
+  <div class="files">
+    <code>service/app.py</code> &mdash; <code>_on_mqtt_result()</code> (line 83): builds <code>{job_id, state, timestamp}</code> payload<br>
+    <code>service/services/notifier_service.py</code> &mdash; <code>notify_job_update()</code> (line 50): <code>sio.emit("job_update", payload, room=room)</code>
+  </div>
+</div>
+
+<!-- §6 -->
+<h3 id="s6">&sect;6 Technical Expectations</h3>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;6</span> Python 3.10+ with pinned dependencies</h4>
+  <div class="files"><code>requirements.txt</code> &mdash; all dependencies pinned</div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;6</span> Modular package layout</h4>
+  <p>20 source files across 4 sub-packages: <code>service/</code>, <code>service/providers/</code>, <code>service/services/</code>, <code>service/api/</code>.</p>
+  <div class="files">See <a href="#walkthrough">Code Walkthrough</a> below for full listing.</div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;6</span> Structured JSON logging</h4>
+  <p>One JSON object per log line with <code>ts</code>, <code>level</code>, <code>service</code>, <code>msg</code> fields.</p>
+  <div class="files">
+    <code>service/logger.py</code> &mdash; <code>JSONFormatter</code> (line 13), <code>get_logger(service_name)</code> (line 42)<br>
+    Every service calls <code>get_logger("name")</code> at module level.
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;6</span> Configuration via environment variables</h4>
+  <p>No hard-coded paths or secrets. All tunables: <code>MQTT_HOST</code>, <code>MQTT_PORT</code>, <code>DB_PATH</code>, <code>PORT</code>, <code>SEED_PATH</code>.</p>
+  <div class="files">
+    <code>service/config.py</code> &mdash; <code>os.environ.get()</code> with sensible defaults (lines 11-18)
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;6</span> Three required tests</h4>
+  <table>
+    <tr><th>Test</th><th>File</th><th>Function</th></tr>
+    <tr>
+      <td>Idempotency: same key returns same job</td>
+      <td><code>tests/test_core.py</code></td>
+      <td><code>test_idempotency_same_key_returns_same_job()</code> line 30</td>
+    </tr>
+    <tr>
+      <td>Atomic concurrency: 10 parallel &rarr; 1&times;201</td>
+      <td><code>tests/test_core.py</code></td>
+      <td><code>test_atomic_overlap_exactly_one_wins()</code> line 54</td>
+    </tr>
+    <tr>
+      <td>MQTT round-trip: submit &rarr; COMPLETED</td>
+      <td><code>tests/test_core.py</code></td>
+      <td><code>test_mqtt_roundtrip_job_reaches_completed()</code> line 84</td>
+    </tr>
+  </table>
+  <div class="files">
+    <code>tests/conftest.py</code> &mdash; shared fixtures: <code>client</code>, <code>auth_headers</code>, <code>future_window</code>, <code>make_idempotency_key</code>
+  </div>
+</div>
+
+<div class="req-card green">
+  <h4><span class="req-tag section">&sect;6</span> Makefile with make setup / run / test</h4>
+  <div class="files">
+    <code>Makefile</code> &mdash; targets: <code>setup</code>, <code>run</code>, <code>test</code>, <code>verify</code>, <code>clean</code>
+  </div>
+</div>
+
+
+<!-- ============== CODE WALKTHROUGH ============== -->
+<h2 id="walkthrough">Code Walkthrough</h2>
+
+<h3 id="walk-const">service/constants.py</h3>
+<p>
+  Centralizes <strong>every magic string and number</strong> in the application.
+  No other module hardcodes HTTP status codes, MQTT topic names, validation limits,
+  Socket.IO event names, or error message templates. This makes the codebase
+  greppable, refactor-safe, and easy to audit.
+</p>
+<table>
+  <tr><th>Category</th><th>Examples</th></tr>
+  <tr><td>HTTP Status Codes</td><td><code>HTTP_OK=200</code>, <code>HTTP_CREATED=201</code>, <code>HTTP_BAD_REQUEST=400</code>, <code>HTTP_UNAUTHORIZED=401</code>, <code>HTTP_NOT_FOUND=404</code>, <code>HTTP_CONFLICT=409</code>, <code>HTTP_UNPROCESSABLE=422</code></td></tr>
+  <tr><td>HTTP Headers</td><td><code>HEADER_IDEMPOTENCY_KEY="Idempotency-Key"</code>, <code>BEARER_PREFIX="Bearer "</code></td></tr>
+  <tr><td>Validation Limits</td><td><code>IDEMPOTENCY_KEY_MAX_LENGTH=100</code>, <code>MAX_ACTIVE_JOBS_PER_USER=10</code>, <code>MIN_JOB_DURATION=15min</code>, <code>MAX_JOB_DURATION=4h</code></td></tr>
+  <tr><td>MQTT</td><td><code>TOPIC_DISPATCH="jobs/dispatch"</code>, <code>TOPIC_RESULT="jobs/result"</code>, <code>MQTT_QOS=0</code></td></tr>
+  <tr><td>Socket.IO</td><td><code>SOCKETIO_EVENT_JOB_UPDATE="job_update"</code>, <code>SOCKETIO_ROOM_PREFIX="user:"</code></td></tr>
+  <tr><td>States</td><td><code>STATE_PENDING="PENDING"</code>, <code>STATE_RUNNING="RUNNING"</code>, etc.</td></tr>
+  <tr><td>Error Messages</td><td><code>ErrorMessages</code> class with templates for all validation failures</td></tr>
+</table>
+
+<h3 id="walk-config">service/config.py</h3>
+<p>
+  Loads all configuration from environment variables with sensible defaults.
+  Parses <code>seed.json</code> at import time into three lookup structures:
+  <code>USERS_BY_TOKEN</code>, <code>USERS_BY_ID</code>, <code>VALID_ASSETS</code>.
+</p>
+
+<h3 id="walk-models">service/models.py</h3>
+<p>
+  Defines the domain model layer:
+</p>
+<ul class="checklist">
+  <li><code>JobState</code> &mdash; enum backed by string constants from <code>constants.py</code></li>
+  <li><code>VALID_TRANSITIONS</code> &mdash; dict mapping each non-terminal state to its allowed successors</li>
+  <li><code>is_valid_transition(current, proposed)</code> &mdash; guard function used by <code>MQTTBrokerService</code></li>
+  <li><code>JobCreate</code> &mdash; Pydantic model for inbound POST body</li>
+  <li><code>JobResponse</code> &mdash; Pydantic model for outbound job representation</li>
+</ul>
+
+<h3 id="walk-providers">service/providers/ &mdash; Protocol Definitions</h3>
+<p>
+  Four Python <code>Protocol</code> classes define the contracts between layers.
+  This is the <strong>Dependency Inversion</strong> principle: high-level modules
+  (orchestrator, routes) depend on abstractions, not concrete implementations.
+</p>
+<table>
+  <tr><th>Protocol</th><th>File</th><th>Key Methods</th><th>Implementor</th></tr>
+  <tr>
+    <td><code>AuthProvider</code></td>
+    <td><code>providers/auth.py</code></td>
+    <td><code>authenticate(token) &rarr; dict|None</code></td>
+    <td><code>TokenAuthService</code></td>
+  </tr>
+  <tr>
+    <td><code>JobRepository</code></td>
+    <td><code>providers/repository.py</code></td>
+    <td><code>initialize()</code>, <code>find_by_id()</code>, <code>insert_if_no_overlap()</code>, <code>update_state()</code>, + 4 more</td>
+    <td><code>SQLiteJobRepository</code></td>
+  </tr>
+  <tr>
+    <td><code>MessageBroker</code></td>
+    <td><code>providers/broker.py</code></td>
+    <td><code>start(on_result)</code>, <code>stop()</code>, <code>publish_dispatch(job)</code></td>
+    <td><code>MQTTBrokerService</code></td>
+  </tr>
+  <tr>
+    <td><code>RealtimeNotifier</code></td>
+    <td><code>providers/notifier.py</code></td>
+    <td><code>notify_job_update(user_id, payload)</code></td>
+    <td><code>SocketIONotifierService</code></td>
+  </tr>
+</table>
+
+<h3 id="walk-services">service/services/ &mdash; Implementations</h3>
+
+<table>
+  <tr><th>Service</th><th>File</th><th>Responsibility</th></tr>
+  <tr>
+    <td><code>TokenAuthService</code></td>
+    <td><code>services/auth_service.py</code></td>
+    <td>Resolves static Bearer tokens from seed data to user dicts.</td>
+  </tr>
+  <tr>
+    <td><code>SQLiteJobRepository</code></td>
+    <td><code>services/job_repository.py</code></td>
+    <td>
+      SQLite persistence with WAL mode. Thread-safe via <code>threading.local()</code>
+      (per-thread connections). <code>BEGIN IMMEDIATE</code> for atomic overlap detection.
+      All SQL as module-level constant strings.
+    </td>
+  </tr>
+  <tr>
+    <td><code>JobValidationService</code></td>
+    <td><code>services/validation_service.py</code></td>
+    <td>
+      Stateless validator enforcing all 6 business rules from &sect;4.4.
+      Returns <code>(status_code, message)</code> tuples on failure.
+    </td>
+  </tr>
+  <tr>
+    <td><code>MQTTBrokerService</code></td>
+    <td><code>services/broker_service.py</code></td>
+    <td>
+      paho-mqtt client with <code>loop_start()</code> background thread. Publishes
+      5-field dispatch. Subscribes to results and validates state machine
+      transitions before persisting.
+    </td>
+  </tr>
+  <tr>
+    <td><code>SocketIONotifierService</code></td>
+    <td><code>services/notifier_service.py</code></td>
+    <td>
+      Socket.IO AsyncServer wrapper. Token auth from query string.
+      Per-user rooms (<code>user:&lt;id&gt;</code>). Emits <code>job_update</code> events
+      scoped to job owner's room.
+    </td>
+  </tr>
+  <tr>
+    <td><code>JobOrchestrator</code></td>
+    <td><code>services/job_orchestrator.py</code></td>
+    <td>
+      Coordinates the full job creation lifecycle: idempotency check &rarr;
+      validation &rarr; atomic overlap check + insert &rarr; MQTT dispatch.
+      Single entry point for all job mutation logic.
+    </td>
+  </tr>
+</table>
+
+<h3 id="walk-api">service/api/ &mdash; API Layer</h3>
+
+<table>
+  <tr><th>File</th><th>Responsibility</th></tr>
+  <tr>
+    <td><code>api/routes.py</code></td>
+    <td>
+      Thin FastAPI route handlers. Delegates to <code>JobOrchestrator</code>.
+      Handles HTTP-level concerns only: auth, Idempotency-Key validation, status codes.
+    </td>
+  </tr>
+  <tr>
+    <td><code>api/dependencies.py</code></td>
+    <td>
+      FastAPI <code>Depends()</code> functions. <code>get_current_user()</code> extracts
+      Bearer token and resolves via <code>AuthProvider</code>. <code>get_registry()</code>
+      returns the global registry.
+    </td>
+  </tr>
+  <tr>
+    <td><code>api/error_handlers.py</code></td>
+    <td>
+      Remaps Pydantic <code>RequestValidationError</code> (which FastAPI defaults to 422)
+      to <strong>400 Bad Request</strong>. This is the 400-vs-422 split required by the spec.
+    </td>
+  </tr>
+</table>
+
+<h3 id="walk-app">service/app.py &mdash; Application Assembly</h3>
+<p>
+  The root module that wires everything together:
+</p>
+<div class="flow-step"><div class="step-num">1</div><div>Creates <code>socketio.AsyncServer</code> and <code>FastAPI</code> instances</div></div>
+<div class="flow-step"><div class="step-num">2</div><div>Mounts Socket.IO as an ASGI wrapper around FastAPI</div></div>
+<div class="flow-step"><div class="step-num">3</div><div>Instantiates all services and registers them in the <code>ServiceRegistry</code></div></div>
+<div class="flow-step"><div class="step-num">4</div><div>Defines <code>_on_mqtt_result()</code> &mdash; the threading bridge that calls <code>asyncio.run_coroutine_threadsafe()</code></div></div>
+<div class="flow-step"><div class="step-num">5</div><div>On startup: initializes DB, starts MQTT with the result callback, captures the event loop reference</div></div>
+<div class="flow-step"><div class="step-num">6</div><div>On shutdown: disconnects MQTT gracefully</div></div>
+
+<h3 id="walk-tests">tests/ &mdash; Test Suite</h3>
+<p>
+  Three integration tests per &sect;6, hitting the live service and real MQTT broker (no mocking).
+  Same conditions as <code>verify.py</code>.
+</p>
+<table>
+  <tr><th>Test</th><th>What it Exercises</th><th>Key Assertions</th></tr>
+  <tr>
+    <td><code>test_idempotency_same_key_returns_same_job</code></td>
+    <td>&sect;4.6 Idempotency</td>
+    <td>Same key &rarr; same <code>id</code>, listed exactly once</td>
+  </tr>
+  <tr>
+    <td><code>test_atomic_overlap_exactly_one_wins</code></td>
+    <td>&sect;4.5 Atomic overlap</td>
+    <td>10 parallel POSTs &rarr; exactly 1&times;201 + 9&times;409</td>
+  </tr>
+  <tr>
+    <td><code>test_mqtt_roundtrip_job_reaches_completed</code></td>
+    <td>&sect;4.7 MQTT + &sect;4.3 State machine</td>
+    <td>Submit &rarr; poll until state = COMPLETED (10s timeout)</td>
+  </tr>
+</table>
+<p>
+  <strong>Fixtures</strong> in <code>tests/conftest.py</code>: <code>client</code> (httpx),
+  <code>auth_headers()</code>, <code>make_idempotency_key()</code>,
+  <code>future_window(hours_ahead, duration_hours)</code>.
+</p>
+
+
+<!-- ============== VERIFY OUTPUT ============== -->
+<h2 id="verify">verify.py Output</h2>
+<pre><code>Running verification against http://localhost:8000
+Using Alice (user-001) and Bob (user-002) from data/seed.json
+
+ 1. /health returns 200
+    PASS  health responds 200
+
+ 2. Authentication
+    PASS  GET /api/jobs without token returns 401
+    PASS  GET /api/jobs with invalid token returns 401
+    PASS  GET /api/jobs with valid token returns 200
+
+ 3. Submit a valid job and read it back
+    PASS  POST /api/jobs returns 201
+    PASS  response includes id
+    PASS  response includes state — state=PENDING
+    PASS  GET /api/jobs/{id} returns 200
+
+ 4. Idempotency-Key returns the same job on a second POST
+    PASS  Same Idempotency-Key returns same job id
+    PASS  Listing contains the job exactly once
+
+ 5. Overlapping job on same asset returns 409
+    PASS  Overlap returns 409
+
+ 6. 10 parallel overlapping submissions — exactly 1 wins
+    PASS  Exactly 1 succeeded (201) — 1×201, 9×409
+    PASS  Other 9 returned 409
+
+ 7. Cross-user access — Bob cannot read Alice's job
+    PASS  Bob reading Alice's job returns 404
+    PASS  Bob's list does not include Alice's job
+
+ 8. Validation: unknown asset → 422; start in past → 422; bad duration → 422
+    PASS  Unknown asset_id returns 422
+    PASS  start_time in past returns 422
+    PASS  duration < 15min returns 422
+
+ 9. End-to-end: submit → worker → state becomes COMPLETED
+    PASS  Job reaches COMPLETED via MQTT round-trip
+
+10. Worker failure path: asset-fault transitions to FAILED
+    PASS  Job on asset-fault transitions to FAILED
+    PASS  error_message is populated on FAILED
+
+11. Socket.IO: each user receives only their own job_update events
+    PASS  Alice receives job_update events for her own job
+    PASS  Bob does NOT receive Alice's job events
+
+============================================================
+23/23 scenarios passed</code></pre>
+
+
+<!-- ============== macOS ============== -->
+<h2 id="macos">macOS-Specific Notes</h2>
+
+<h3>Mosquitto Docker Issue on macOS</h3>
+<p>
+  Docker Desktop for macOS runs containers inside a lightweight Linux VM.
+  This introduces a networking indirection layer that can cause Mosquitto to
+  be unreachable from the host at <code>localhost:1883</code>.
+</p>
+
+<h3>Symptoms</h3>
+<ul>
+  <li><code>ConnectionRefusedError</code> when the service tries to connect to MQTT</li>
+  <li><code>docker compose up -d</code> shows containers as "Up" but <code>lsof -i :1883</code> shows nothing on the host</li>
+  <li>Works fine on Linux but fails on macOS</li>
+</ul>
+
+<h3>Fixes</h3>
+
+<table>
+  <tr><th>Issue</th><th>Fix</th></tr>
+  <tr>
+    <td>IPv6 binding</td>
+    <td>
+      Add <code>socket_domain ipv4</code> to <code>mosquitto.conf</code>:
+<pre><code>listener 1883 0.0.0.0
+socket_domain ipv4
+allow_anonymous true</code></pre>
+    </td>
+  </tr>
+  <tr>
+    <td>Apple Silicon (ARM64)</td>
+    <td>
+      Add <code>platform: linux/amd64</code> to the Mosquitto service in <code>docker-compose.yml</code>
+    </td>
+  </tr>
+  <tr>
+    <td>Docker Desktop networking stale</td>
+    <td>Restart Docker Desktop entirely (not just the containers)</td>
+  </tr>
+  <tr>
+    <td>Port conflict</td>
+    <td>Check with <code>lsof -i :1883</code> and kill any existing process, or change the port mapping</td>
+  </tr>
+</table>
+
+<p>
+  <strong>Note:</strong> The provided <code>mosquitto.conf</code> already includes
+  <code>listener 1883 0.0.0.0</code> which handles most cases. If you encounter issues
+  on macOS, the IPv4 socket domain fix is usually sufficient.
+</p>
+
+</main>
+</div>
+</body>
+</html>

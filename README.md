@@ -39,52 +39,221 @@ python3 verify.py                        # run verify harness
 pytest tests/ -v                         # run tests
 ```
 
+### macOS Troubleshooting: Mosquitto / Docker Desktop
+
+On macOS (especially Apple Silicon), Docker Desktop may exhibit networking
+issues where the host cannot connect to `localhost:1883` inside the
+Mosquitto container. Common fixes:
+
+1. **IPv6 conflict** -- Docker Desktop may bind Mosquitto on IPv6 only.
+   Add `socket_domain ipv4` to `mosquitto.conf`:
+   ```
+   listener 1883 0.0.0.0
+   socket_domain ipv4
+   allow_anonymous true
+   ```
+2. **Apple Silicon (ARM64)** -- Force the platform in `docker-compose.yml`:
+   ```yaml
+   mosquitto:
+     image: eclipse-mosquitto:2
+     platform: linux/amd64
+   ```
+3. **Firewall** -- Ensure macOS does not block port 1883. Check with:
+   ```bash
+   lsof -i :1883
+   ```
+4. **Docker Desktop restart** -- If none of the above work, restart
+   Docker Desktop entirely. The VM networking layer can get stale.
+
+---
+
 ## Architecture
 
-The service follows a **registry-based provider-service architecture**.
-Provider protocols define contracts; service classes implement them; a
-central `ServiceRegistry` wires everything at startup.
+The service follows a **registry-based provider-service architecture**
+built on SOLID principles. Provider protocols define contracts; concrete
+service classes implement them; a central `ServiceRegistry` wires
+everything at startup.
 
-```
-Operator ──HTTP──▶ FastAPI routes ──▶ JobOrchestrator
-                                         │
-                    ┌────────────────────┼────────────────────┐
-                    ▼                    ▼                    ▼
-            ValidationService    SQLiteJobRepository    MQTTBrokerService
-                                     │                       │
-                                     │ SQLite                │ MQTT
-                                     ▼                       ▼
-                                  jobs.db              Mosquitto ◀──▶ Worker
-                                                             │
-                                                             ▼
-                                                    SocketIONotifierService
-                                                             │
-                                                        Socket.IO
-                                                             ▼
-                                                       Connected clients
+### System Overview
+
+```mermaid
+graph TB
+    subgraph Clients
+        OP["Operator<br/>(HTTP Client)"]
+        WS["WebSocket<br/>(Socket.IO Client)"]
+    end
+
+    subgraph Service["Job Scheduling Service :8000"]
+        direction TB
+        FW["FastAPI + Routes"]
+        ORCH["JobOrchestrator"]
+        VAL["ValidationService"]
+        REPO["SQLiteJobRepository"]
+        BRK["MQTTBrokerService"]
+        NTF["SocketIONotifierService"]
+        REG["ServiceRegistry"]
+    end
+
+    subgraph Infrastructure
+        DB[(SQLite<br/>jobs.db)]
+        MQ["Mosquitto<br/>:1883"]
+        WK["Worker Container"]
+    end
+
+    OP -->|"REST API"| FW
+    FW --> ORCH
+    ORCH --> VAL
+    ORCH --> REPO
+    ORCH --> BRK
+    REPO --> DB
+    BRK -->|"jobs/dispatch"| MQ
+    MQ -->|"jobs/result"| BRK
+    MQ <--> WK
+    BRK -->|"thread bridge"| NTF
+    NTF -->|"job_update"| WS
+    REG -.->|"wires"| ORCH
+    REG -.->|"wires"| VAL
+    REG -.->|"wires"| REPO
+    REG -.->|"wires"| BRK
+    REG -.->|"wires"| NTF
 ```
 
-**Job flow:** An operator POSTs a job. The orchestrator validates it
-(business rules, idempotency, overlap check), persists it to SQLite,
-then publishes a dispatch message to MQTT. The worker picks it up,
-processes it (1 second), and publishes state transitions back. The
-broker service receives these, validates the state machine transition,
-updates the database, and emits a `job_update` event over Socket.IO to
-the job's owner only.
+### Job Lifecycle (State Machine)
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: POST /api/jobs (201)
+
+    PENDING --> RUNNING: MQTT {"state":"RUNNING"}
+    PENDING --> COMPLETED: MQTT {"state":"COMPLETED"}
+    PENDING --> FAILED: MQTT {"state":"FAILED"}
+
+    RUNNING --> COMPLETED: MQTT {"state":"COMPLETED"}
+    RUNNING --> FAILED: MQTT {"state":"FAILED"}
+
+    COMPLETED --> [*]
+    FAILED --> [*]
+
+    note right of PENDING: Initial state on creation
+    note right of COMPLETED: Terminal — no further transitions
+    note right of FAILED: Terminal — error_message populated
+```
+
+### Request Flow: Job Submission
+
+```mermaid
+sequenceDiagram
+    participant C as Operator
+    participant R as FastAPI Routes
+    participant O as JobOrchestrator
+    participant V as ValidationService
+    participant DB as SQLiteJobRepository
+    participant M as MQTTBrokerService
+    participant W as Worker
+    participant N as SocketIONotifier
+    participant S as Socket.IO Client
+
+    C->>R: POST /api/jobs<br/>(Bearer token + Idempotency-Key)
+    R->>R: Authenticate (401 if invalid)
+    R->>R: Validate Idempotency-Key (400 if missing/too long)
+    R->>O: create_job(body, user_id, key)
+
+    O->>DB: find_by_idempotency_key()
+    alt Key exists
+        DB-->>O: existing job
+        O-->>R: (201, job)
+    else Key is new
+        O->>DB: count_active_jobs()
+        O->>V: validate(body, user_id, count)
+        alt Validation fails
+            V-->>O: (422, message)
+            O-->>R: (422, error)
+        else Valid
+            O->>DB: insert_if_no_overlap()<br/>(BEGIN IMMEDIATE)
+            alt Overlap detected
+                DB-->>O: None
+                O-->>R: (409, conflict)
+            else No overlap
+                DB-->>O: job
+                O->>M: publish_dispatch(job)
+                M->>W: jobs/dispatch
+                O-->>R: (201, job)
+            end
+        end
+    end
+
+    W->>M: jobs/result {state: RUNNING}
+    M->>DB: update_state()
+    M->>N: on_result callback<br/>(asyncio.run_coroutine_threadsafe)
+    N->>S: emit("job_update", payload)
+
+    W->>M: jobs/result {state: COMPLETED}
+    M->>DB: update_state()
+    M->>N: on_result callback
+    N->>S: emit("job_update", payload)
+```
+
+### MQTT ↔ Socket.IO Threading Bridge
+
+```mermaid
+graph LR
+    subgraph "paho-mqtt Thread"
+        A["on_message()"] --> B["validate transition"]
+        B --> C["update DB"]
+        C --> D["call on_result()"]
+    end
+
+    D -->|"asyncio.run_coroutine_threadsafe()"| E
+
+    subgraph "asyncio Event Loop (uvicorn)"
+        E["notifier.notify_job_update()"] --> F["sio.emit()"]
+    end
+
+    F --> G["Socket.IO Client"]
+```
 
 ### Package Layout
 
-| Path | Responsibility |
-|------|----------------|
-| `service/constants.py` | All magic strings, numbers, topics, limits |
-| `service/config.py` | Environment variable configuration + seed data |
-| `service/logger.py` | Common structured JSON logger factory |
-| `service/registry.py` | ServiceRegistry (dependency container) |
-| `service/models.py` | Pydantic schemas, JobState enum, state machine |
-| `service/providers/` | Protocol definitions (AuthProvider, JobRepository, MessageBroker, RealtimeNotifier) |
-| `service/services/` | Implementations (TokenAuthService, SQLiteJobRepository, MQTTBrokerService, SocketIONotifierService, JobValidationService, JobOrchestrator) |
-| `service/api/` | FastAPI routes, dependencies, error handlers |
-| `service/app.py` | ASGI assembly + startup/shutdown lifecycle |
+```mermaid
+graph TD
+    subgraph "service/"
+        APP["app.py<br/><i>ASGI assembly + lifecycle</i>"]
+        CFG["config.py<br/><i>env vars + seed data</i>"]
+        CONST["constants.py<br/><i>all magic strings/numbers</i>"]
+        LOG["logger.py<br/><i>JSON logger factory</i>"]
+        REG2["registry.py<br/><i>ServiceRegistry DI</i>"]
+        MOD["models.py<br/><i>Pydantic + state machine</i>"]
+    end
+
+    subgraph "service/providers/"
+        PA["auth.py<br/><i>AuthProvider protocol</i>"]
+        PR["repository.py<br/><i>JobRepository protocol</i>"]
+        PB["broker.py<br/><i>MessageBroker protocol</i>"]
+        PN["notifier.py<br/><i>RealtimeNotifier protocol</i>"]
+    end
+
+    subgraph "service/services/"
+        SA["auth_service.py<br/><i>TokenAuthService</i>"]
+        SR["job_repository.py<br/><i>SQLiteJobRepository</i>"]
+        SV["validation_service.py<br/><i>JobValidationService</i>"]
+        SB["broker_service.py<br/><i>MQTTBrokerService</i>"]
+        SN["notifier_service.py<br/><i>SocketIONotifierService</i>"]
+        SO["job_orchestrator.py<br/><i>JobOrchestrator</i>"]
+    end
+
+    subgraph "service/api/"
+        AR["routes.py<br/><i>FastAPI endpoints</i>"]
+        AD["dependencies.py<br/><i>Depends() + auth</i>"]
+        AE["error_handlers.py<br/><i>400 vs 422 split</i>"]
+    end
+
+    PA -.->|implements| SA
+    PR -.->|implements| SR
+    PB -.->|implements| SB
+    PN -.->|implements| SN
+```
+
+---
 
 ## Database Choice
 
