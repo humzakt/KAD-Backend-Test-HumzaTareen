@@ -1,0 +1,52 @@
+Running verification against http://localhost:8000
+Using Alice (user-001) and Bob (user-002) from data/seed.json
+
+1. /health returns 200
+  PASS  health responds 200 — got 200
+
+2. Authentication
+  PASS  GET /api/jobs without token returns 401 — got 401
+  PASS  GET /api/jobs with invalid token returns 401 — got 401
+  PASS  GET /api/jobs with valid token returns 200 — got 200
+
+3. Submit a valid job and read it back
+  PASS  POST /api/jobs returns 201 — job_id=fbc98334-5723-45a8-9e3c-ff63f583a9b9
+  PASS  response includes id
+  PASS  response includes state — state=PENDING
+  PASS  GET /api/jobs/{id} returns 200 — got 200
+
+4. Idempotency-Key returns the same job on a second POST
+  PASS  Same Idempotency-Key returns same job id — r1.id=5fbeb6d9-d6a3-4d75-bddc-955120cfd36e r2.id=5fbeb6d9-d6a3-4d75-bddc-955120cfd36e
+  PASS  Listing contains the job exactly once — count=1
+
+5. Submitting a job that overlaps an existing job on the same asset returns 409
+  PASS  Overlap returns 409 — got 409
+
+6. 10 parallel overlapping submissions on the same asset — exactly 1 wins
+  PASS  Exactly 1 succeeded (201) — got 1× 201, 9× 409, others=[201, 409, 409, 409, 409, 409, 409, 409, 409, 409]
+  PASS  Other 9 returned 409 — got 9× 409
+
+7. Cross-user access — Bob cannot read Alice's job
+  PASS  Bob reading Alice's job returns 404 (not 200/403) — got 404
+  PASS  Bob's list does not include Alice's job — bob has 0 jobs
+
+8. Validation: unknown asset → 422; start in past → 422; bad duration → 422
+  PASS  Unknown asset_id returns 422 — got 422
+  PASS  start_time in past returns 422 — got 422
+  PASS  duration < 15min returns 422 — got 422
+
+9. End-to-end: submit → worker processes → state becomes COMPLETED
+  info  submitted job 66e5d7e7-e3dd-448f-8b7f-60e34f011e6f; polling for COMPLETED...
+  PASS  Job reaches COMPLETED via MQTT round-trip — final state=COMPLETED
+
+10. Worker failure path: jobs on 'asset-fault' transition to FAILED
+  PASS  Job on asset-fault transitions to FAILED — final state=FAILED
+  PASS  error_message is populated on FAILED — error_message='Simulated worker failure (asset-fault)'
+
+11. SocketIO: each user receives only their own job_update events
+  info  alice submitted 29384f62-3da1-4f93-ad65-1344d58b4052
+  PASS  Alice receives job_update events for her own job — received 2 events: ['RUNNING', 'COMPLETED']
+  PASS  Bob does NOT receive Alice's job events — bob received 0 unexpected events
+
+============================================================
+23/23 scenarios passed
