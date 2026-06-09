@@ -163,18 +163,20 @@ sequenceDiagram
         DB-->>O: existing job
         O-->>R: (201, job)
     else Key is new
-        O->>DB: count_active_jobs()
-        O->>V: validate(body, user_id, count)
+        O->>V: validate(body, user_id)
         alt Validation fails
             V-->>O: (422, message)
             O-->>R: (422, error)
         else Valid
-            O->>DB: insert_if_no_overlap()<br/>(BEGIN IMMEDIATE)
-            alt Overlap detected
-                DB-->>O: None
+            O->>DB: insert_if_no_overlap(max_active_jobs=10)<br/>(BEGIN IMMEDIATE)
+            alt Max active jobs reached
+                DB-->>O: ("max_active", None)
+                O-->>R: (422, limit)
+            else Overlap detected
+                DB-->>O: ("overlap", None)
                 O-->>R: (409, conflict)
             else No overlap
-                DB-->>O: job
+                DB-->>O: ("created", job)
                 O->>M: publish_dispatch(job)
                 M->>W: jobs/dispatch
                 O-->>R: (201, job)
@@ -219,7 +221,7 @@ graph TD
     subgraph "service/"
         APP["app.py<br/><i>ASGI assembly + lifecycle</i>"]
         CFG["config.py<br/><i>env vars + seed data</i>"]
-        CONST["constants.py<br/><i>all magic strings/numbers</i>"]
+        CONST["constants.py<br/><i>magic strings + domain constants</i>"]
         LOG["logger.py<br/><i>JSON logger factory</i>"]
         REG2["registry.py<br/><i>ServiceRegistry DI</i>"]
         MOD["models.py<br/><i>Pydantic + state machine</i>"]
@@ -274,13 +276,17 @@ first write statement. This means:
 
 1. Thread A begins a transaction with `BEGIN IMMEDIATE`.
 2. Thread B tries `BEGIN IMMEDIATE` and **blocks** (up to `busy_timeout`).
-3. Thread A checks for overlaps, inserts the job, and commits.
-4. Thread B unblocks, runs its overlap SELECT, and **sees Thread A's committed row**.
+3. Thread A checks the active-job count, checks for overlaps, inserts the job, and commits.
+4. Thread B unblocks, runs its checks, and **sees Thread A's committed row**.
 5. Thread B rolls back with a 409.
 
-This guarantees exactly one 201 out of N concurrent requests for the same
-time window. The `verify.py` concurrency test (10 parallel requests)
-passes consistently.
+Both the **active-job limit** (max 10) and the **overlap check** run
+inside the same `BEGIN IMMEDIATE` transaction, guaranteeing atomicity
+for both constraints under concurrent load. The `verify.py` concurrency
+test (10 parallel requests) passes consistently.
+
+A composite index on `(asset_id, state, start_time, end_time)` covers
+the overlap query to avoid full table scans at scale.
 
 **Why not `asyncio.Lock`?** That only serializes within a single event
 loop. `BEGIN IMMEDIATE` works at the database level, which is correct
@@ -323,20 +329,21 @@ bridges to asyncio:
 future = asyncio.run_coroutine_threadsafe(
     notifier.notify_job_update(user_id, payload), loop
 )
-future.result(timeout=5)
+try:
+    future.result(timeout=5)
+except Exception:
+    log.exception("failed to emit job_update")
 ```
 
 `run_coroutine_threadsafe` schedules the coroutine on the main event loop
 and returns a `concurrent.futures.Future`. Calling `.result()` blocks the
 paho thread until the emit completes, ensuring the Socket.IO message is
-delivered before the next MQTT message is processed.
+delivered before the next MQTT message is processed. The `try/except`
+ensures a failed emit never crashes paho's background thread.
 
 ## Trade-Offs
 
 **What I cut for the time budget:**
-- No graceful retry on MQTT connection failure during startup (paho's
-  built-in reconnect handles transient failures, but there's no health
-  check that exposes MQTT status).
 - The `on_event("startup"/"shutdown")` pattern is deprecated in FastAPI;
   a lifespan context manager would be cleaner but requires restructuring
   the Socket.IO mount order.
@@ -356,10 +363,13 @@ delivered before the next MQTT message is processed.
 
 Cursor with Claude was used throughout development. The AI generated
 initial boilerplate (FastAPI route structure, Pydantic models, SQLite
-schema, paho-mqtt client setup, ServiceRegistry skeleton). Manual work
-included: designing the `BEGIN IMMEDIATE` overlap-detection transaction,
-debugging the `await sio.enter_room()` issue (was missing `await`,
-causing Socket.IO rooms to never be assigned), structuring the
+schema, paho-mqtt client setup, ServiceRegistry skeleton) and
+documentation drafts (README diagrams, implementation guide HTML).
+Manual work included: designing the `BEGIN IMMEDIATE` overlap-detection
+transaction, debugging the `await sio.enter_room()` issue (was missing
+`await`, causing Socket.IO rooms to never be assigned), structuring the
 provider-service-registry architecture, writing the constants module to
-eliminate all magic values, and iterative testing against `verify.py`
-until 23/23 passed.
+eliminate all magic values, driving multiple audit and hardening passes
+(response field leakage, concurrent idempotency races, atomic
+active-job limits, MQTT callback thread safety), and iterative testing
+against `verify.py` until 23/23 passed.
