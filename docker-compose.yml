@@ -1,0 +1,32 @@
+version: "3.8"
+
+# Two services we ship with the exercise:
+#   - mosquitto: MQTT broker (anonymous, port 1883 on the host)
+#   - worker:    job-processing stub (deterministic, see worker/worker.py)
+#
+# Your service runs on the host (not in this compose file) and connects to:
+#   - MQTT broker at localhost:1883
+#
+# Start everything with:  docker compose up -d
+# Stop with:              docker compose down
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: be-exercise-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  worker:
+    build: ./worker
+    container_name: be-exercise-worker
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      WORKER_PROCESSING_SECONDS: "1.0"
+    depends_on:
+      - mosquitto
+    restart: unless-stopped

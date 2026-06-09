@@ -1,0 +1,32 @@
+{
+  "_comment": "Seed data for the backend exercise. Tokens are static; treat them as test fixtures, not real credentials. Worker simulates FAILED state only for jobs targeting asset-fault.",
+  "users": [
+    {
+      "user_id": "user-001",
+      "name": "Alice Operator",
+      "token": "tok_alice_a1b2c3d4e5f6"
+    },
+    {
+      "user_id": "user-002",
+      "name": "Bob Operator",
+      "token": "tok_bob_b2c3d4e5f6a1"
+    },
+    {
+      "user_id": "user-003",
+      "name": "Carol Operator",
+      "token": "tok_carol_c3d4e5f6a1b2"
+    }
+  ],
+  "assets": [
+    {"asset_id": "asset-001", "name": "Battery Unit A", "type": "battery", "site_id": "site-01"},
+    {"asset_id": "asset-002", "name": "Battery Unit B", "type": "battery", "site_id": "site-01"},
+    {"asset_id": "asset-003", "name": "Charger A1",    "type": "charger", "site_id": "site-01"},
+    {"asset_id": "asset-004", "name": "Charger A2",    "type": "charger", "site_id": "site-01"},
+    {"asset_id": "asset-005", "name": "Battery Unit C", "type": "battery", "site_id": "site-02"},
+    {"asset_id": "asset-006", "name": "Charger B1",    "type": "charger", "site_id": "site-02"},
+    {"asset_id": "asset-007", "name": "Charger B2",    "type": "charger", "site_id": "site-02"},
+    {"asset_id": "asset-008", "name": "Battery Unit D", "type": "battery", "site_id": "site-03"},
+    {"asset_id": "asset-fault", "name": "Faulty Test Asset (worker returns FAILED)", "type": "battery", "site_id": "site-test"}
+  ],
+  "operations": ["charge", "discharge", "maintenance", "calibration"]
+}
