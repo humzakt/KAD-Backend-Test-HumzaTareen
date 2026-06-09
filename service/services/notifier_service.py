@@ -39,7 +39,7 @@ class SocketIONotifierService:
                 raise ConnectionRefusedError(C.ErrorMessages.INVALID_TOKEN)
             user_id = user["user_id"]
             room = f"{C.SOCKETIO_ROOM_PREFIX}{user_id}"
-            self._sio.enter_room(sid, room)
+            await self._sio.enter_room(sid, room)
             await self._sio.save_session(sid, {"user_id": user_id})
             log.info(f"Socket.IO connected sid={sid} user={user_id}")
 
