@@ -5,13 +5,26 @@ __pycache__/
 dist/
 build/
 .eggs/
+
+# Database
 jobs.db
 jobs.db-shm
 jobs.db-wal
+
+# Environment
 .env
 .venv/
 venv/
+
+# IDE / OS
 *.swp
 *.swo
 .DS_Store
+.idea/
+.vscode/
+
+# Test / Benchmark artifacts
 .pytest_cache/
+.benchmarks/
+htmlcov/
+.coverage
