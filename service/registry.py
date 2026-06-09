@@ -35,5 +35,3 @@ class ServiceRegistry:
             )
         return instance  # type: ignore[return-value]
 
-    def is_registered(self, protocol: type) -> bool:
-        return protocol in self._services

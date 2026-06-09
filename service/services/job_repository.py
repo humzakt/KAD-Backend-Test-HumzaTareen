@@ -109,7 +109,16 @@ class SQLiteJobRepository:
         ).fetchone()
         return row["c"]
 
-    def insert_if_no_overlap(self, job: dict) -> dict | None:
+    def insert_if_no_overlap(
+        self, job: dict,
+    ) -> tuple[str, dict | None]:
+        """Atomically check for overlap and insert.
+
+        Returns ``("created", job)`` on success,
+        ``("overlap", None)`` on time-window conflict,
+        ``("idempotent", existing_job)`` if a concurrent request
+        already inserted the same ``(user_id, idempotency_key)``.
+        """
         conn = self._conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
@@ -125,7 +134,7 @@ class SQLiteJobRepository:
             if overlap:
                 conn.rollback()
                 log.info(f"overlap detected for asset={job[C.FIELD_ASSET_ID]}")
-                return None
+                return "overlap", None
             conn.execute(
                 _SQL_INSERT,
                 (
@@ -138,7 +147,19 @@ class SQLiteJobRepository:
             )
             conn.commit()
             log.info(f"job created id={job['id']}")
-            return job
+            return "created", job
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            existing = self.find_by_idempotency_key(
+                job["user_id"], job["idempotency_key"],
+            )
+            if existing:
+                log.info(
+                    f"concurrent idempotent replay key="
+                    f"{job['idempotency_key']}",
+                )
+                return "idempotent", existing
+            raise
         except Exception:
             conn.rollback()
             raise

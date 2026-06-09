@@ -10,13 +10,13 @@ Using Alice (user-001) and Bob (user-002) from data/seed.json
   PASS  GET /api/jobs with valid token returns 200 — got 200
 
 3. Submit a valid job and read it back
-  PASS  POST /api/jobs returns 201 — job_id=fbc98334-5723-45a8-9e3c-ff63f583a9b9
+  PASS  POST /api/jobs returns 201 — job_id=15d5f655-cdc7-4213-b7c6-d379f90456d0
   PASS  response includes id
   PASS  response includes state — state=PENDING
   PASS  GET /api/jobs/{id} returns 200 — got 200
 
 4. Idempotency-Key returns the same job on a second POST
-  PASS  Same Idempotency-Key returns same job id — r1.id=5fbeb6d9-d6a3-4d75-bddc-955120cfd36e r2.id=5fbeb6d9-d6a3-4d75-bddc-955120cfd36e
+  PASS  Same Idempotency-Key returns same job id — r1.id=90db874f-87f2-46f6-aff9-57426ad52123 r2.id=90db874f-87f2-46f6-aff9-57426ad52123
   PASS  Listing contains the job exactly once — count=1
 
 5. Submitting a job that overlaps an existing job on the same asset returns 409
@@ -36,7 +36,7 @@ Using Alice (user-001) and Bob (user-002) from data/seed.json
   PASS  duration < 15min returns 422 — got 422
 
 9. End-to-end: submit → worker processes → state becomes COMPLETED
-  info  submitted job 66e5d7e7-e3dd-448f-8b7f-60e34f011e6f; polling for COMPLETED...
+  info  submitted job 9d355932-7f88-492b-a38d-0067a74534a9; polling for COMPLETED...
   PASS  Job reaches COMPLETED via MQTT round-trip — final state=COMPLETED
 
 10. Worker failure path: jobs on 'asset-fault' transition to FAILED
@@ -44,7 +44,7 @@ Using Alice (user-001) and Bob (user-002) from data/seed.json
   PASS  error_message is populated on FAILED — error_message='Simulated worker failure (asset-fault)'
 
 11. SocketIO: each user receives only their own job_update events
-  info  alice submitted 29384f62-3da1-4f93-ad65-1344d58b4052
+  info  alice submitted 85bcd83d-edef-4261-8c73-c49983dba093
   PASS  Alice receives job_update events for her own job — received 2 events: ['RUNNING', 'COMPLETED']
   PASS  Bob does NOT receive Alice's job events — bob received 0 unexpected events
 

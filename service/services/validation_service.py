@@ -16,6 +16,7 @@ This separation keeps validation logic testable independently of HTTP.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from http import HTTPStatus
 
 from service import config
 from service import constants as C
@@ -39,27 +40,32 @@ class JobValidationService:
         Returns ``(http_status, message)`` on failure, ``None`` if valid.
         """
         if body.asset_id not in config.VALID_ASSETS:
-            return (
-                C.HTTP_UNPROCESSABLE,
-                C.ErrorMessages.UNKNOWN_ASSET.format(asset_id=body.asset_id),
-            )
+            msg = C.ErrorMessages.UNKNOWN_ASSET.format(asset_id=body.asset_id)
+            log.info(f"rejected user={user_id}: {msg}")
+            return HTTPStatus.UNPROCESSABLE_ENTITY, msg
 
         if body.start_time <= datetime.now(timezone.utc):
-            return C.HTTP_UNPROCESSABLE, C.ErrorMessages.START_TIME_IN_PAST
+            log.info(f"rejected user={user_id}: start_time in past")
+            return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.START_TIME_IN_PAST
 
         if body.start_time >= body.end_time:
-            return C.HTTP_UNPROCESSABLE, C.ErrorMessages.START_NOT_BEFORE_END
+            log.info(f"rejected user={user_id}: start_time >= end_time")
+            return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.START_NOT_BEFORE_END
 
         duration = body.end_time - body.start_time
         if duration < C.MIN_JOB_DURATION:
-            return C.HTTP_UNPROCESSABLE, C.ErrorMessages.DURATION_TOO_SHORT
+            log.info(f"rejected user={user_id}: duration too short")
+            return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.DURATION_TOO_SHORT
         if duration > C.MAX_JOB_DURATION:
-            return C.HTTP_UNPROCESSABLE, C.ErrorMessages.DURATION_TOO_LONG
+            log.info(f"rejected user={user_id}: duration too long")
+            return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.DURATION_TOO_LONG
 
         if not body.operation or len(body.operation) > C.OPERATION_MAX_LENGTH:
-            return C.HTTP_UNPROCESSABLE, C.ErrorMessages.OPERATION_INVALID
+            log.info(f"rejected user={user_id}: invalid operation")
+            return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.OPERATION_INVALID
 
         if active_count >= C.MAX_ACTIVE_JOBS_PER_USER:
-            return C.HTTP_UNPROCESSABLE, C.ErrorMessages.MAX_ACTIVE_JOBS
+            log.info(f"rejected user={user_id}: max active jobs reached")
+            return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.MAX_ACTIVE_JOBS
 
         return None

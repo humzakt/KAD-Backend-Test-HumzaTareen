@@ -25,10 +25,12 @@ class JobRepository(Protocol):
         """Count jobs in PENDING or RUNNING state for a user."""
         ...
 
-    def insert_if_no_overlap(self, job: dict) -> dict | None:
+    def insert_if_no_overlap(self, job: dict) -> tuple[str, dict | None]:
         """Atomically check for time-window overlap and insert.
 
-        Returns the job dict on success, ``None`` on conflict.
+        Returns ``("created", job)`` on success,
+        ``("overlap", None)`` on time-window conflict,
+        ``("idempotent", existing_job)`` on concurrent duplicate key.
         """
         ...
 

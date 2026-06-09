@@ -89,8 +89,9 @@ def _on_mqtt_result(updated_job: dict) -> None:
     }
     user_id = updated_job["user_id"]
     if _loop and not _loop.is_closed():
+        notifier_svc = registry.resolve(RealtimeNotifier)
         future = asyncio.run_coroutine_threadsafe(
-            notifier.notify_job_update(user_id, payload), _loop,
+            notifier_svc.notify_job_update(user_id, payload), _loop,
         )
         future.result(timeout=C.SOCKETIO_EMIT_TIMEOUT_SECONDS)
 

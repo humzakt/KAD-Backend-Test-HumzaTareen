@@ -8,11 +8,11 @@ orchestrator.
 """
 from __future__ import annotations
 
+from http import HTTPStatus
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-
-from service import constants as C
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -21,6 +21,6 @@ def register_error_handlers(app: FastAPI) -> None:
         request: Request, exc: RequestValidationError,
     ) -> JSONResponse:
         return JSONResponse(
-            status_code=C.HTTP_BAD_REQUEST,
+            status_code=HTTPStatus.BAD_REQUEST,
             content={"detail": str(exc)},
         )

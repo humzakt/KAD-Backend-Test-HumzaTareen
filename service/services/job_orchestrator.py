@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from http import HTTPStatus
 
 from service import constants as C
 from service.logger import get_logger
@@ -52,7 +53,7 @@ class JobOrchestrator:
         existing = self._repo.find_by_idempotency_key(user_id, idempotency_key)
         if existing:
             log.info(f"idempotent replay key={idempotency_key}")
-            return C.HTTP_CREATED, existing
+            return HTTPStatus.CREATED, existing
 
         # Validation
         active_count = self._repo.count_active_jobs(user_id)
@@ -78,14 +79,17 @@ class JobOrchestrator:
         }
 
         # Atomic overlap check + insert
-        result = self._repo.insert_if_no_overlap(job)
-        if result is None:
-            return C.HTTP_CONFLICT, C.ErrorMessages.OVERLAP_CONFLICT
+        outcome, result = self._repo.insert_if_no_overlap(job)
+        if outcome == "overlap":
+            return HTTPStatus.CONFLICT, C.ErrorMessages.OVERLAP_CONFLICT
+        if outcome == "idempotent":
+            log.info(f"concurrent idempotent replay key={idempotency_key}")
+            return HTTPStatus.CREATED, result
 
         # Dispatch to worker
         self._broker.publish_dispatch(result)
         log.info(f"job created and dispatched id={result['id']}")
-        return C.HTTP_CREATED, result
+        return HTTPStatus.CREATED, result
 
     def get_job(self, job_id: str, user_id: str) -> dict | None:
         return self._repo.find_by_id(job_id, user_id)

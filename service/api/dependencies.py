@@ -6,6 +6,8 @@ importing concrete service implementations directly.
 """
 from __future__ import annotations
 
+from http import HTTPStatus
+
 from fastapi import Header, HTTPException
 
 from service import constants as C
@@ -33,7 +35,7 @@ def get_current_user(authorization: str = Header(None)) -> dict:
     """
     if not authorization or not authorization.startswith(C.BEARER_PREFIX):
         raise HTTPException(
-            status_code=C.HTTP_UNAUTHORIZED,
+            status_code=HTTPStatus.UNAUTHORIZED,
             detail=C.ErrorMessages.INVALID_TOKEN,
         )
     token = authorization.removeprefix(C.BEARER_PREFIX)
@@ -41,7 +43,7 @@ def get_current_user(authorization: str = Header(None)) -> dict:
     user = auth.authenticate(token)
     if not user:
         raise HTTPException(
-            status_code=C.HTTP_UNAUTHORIZED,
+            status_code=HTTPStatus.UNAUTHORIZED,
             detail=C.ErrorMessages.INVALID_TOKEN,
         )
     return user

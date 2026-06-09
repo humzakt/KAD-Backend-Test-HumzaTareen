@@ -312,7 +312,7 @@
   </div>
   <div class="score-item">
     <div class="label">Source Files</div>
-    <div class="value">20</div>
+    <div class="value">23</div>
   </div>
   <div class="score-item">
     <div class="label">Architecture</div>
@@ -660,7 +660,7 @@
   <h4><span class="req-tag section">&sect;4.1</span> GET /health returns 200 with {"status":"ok"}</h4>
   <p>Health endpoint with no auth requirement.</p>
   <div class="files">
-    <code>service/api/routes.py</code> &mdash; <code>health()</code> function (line 23)
+    <code>service/api/routes.py</code> &mdash; <code>health()</code> function
   </div>
 </div>
 
@@ -668,8 +668,8 @@
   <h4><span class="req-tag section">&sect;4.1</span> POST /api/jobs &mdash; submit a new job (201)</h4>
   <p>Requires <code>Idempotency-Key</code> header. Delegates to <code>JobOrchestrator.create_job()</code>.</p>
   <div class="files">
-    <code>service/api/routes.py</code> &mdash; <code>create_job()</code> (line 47)<br>
-    <code>service/services/job_orchestrator.py</code> &mdash; <code>JobOrchestrator.create_job()</code> (line 41)
+    <code>service/api/routes.py</code> &mdash; <code>create_job()</code><br>
+    <code>service/services/job_orchestrator.py</code> &mdash; <code>JobOrchestrator.create_job()</code>
   </div>
 </div>
 
@@ -677,8 +677,8 @@
   <h4><span class="req-tag section">&sect;4.1</span> GET /api/jobs/{id} &mdash; read a single job (200/404)</h4>
   <p>Returns 404 if job doesn't exist <strong>or belongs to another user</strong>.</p>
   <div class="files">
-    <code>service/api/routes.py</code> &mdash; <code>get_job()</code> (line 34)<br>
-    <code>service/services/job_repository.py</code> &mdash; <code>find_by_id()</code> (line 146) &mdash; SQL: <code>WHERE id = ? AND user_id = ?</code>
+    <code>service/api/routes.py</code> &mdash; <code>get_job()</code><br>
+    <code>service/services/job_repository.py</code> &mdash; <code>find_by_id()</code> &mdash; SQL: <code>WHERE id = ? AND user_id = ?</code>
   </div>
 </div>
 
@@ -686,8 +686,8 @@
   <h4><span class="req-tag section">&sect;4.1</span> GET /api/jobs &mdash; list caller's jobs only (200)</h4>
   <p>Always 200; empty list if none.</p>
   <div class="files">
-    <code>service/api/routes.py</code> &mdash; <code>list_jobs()</code> (line 28)<br>
-    <code>service/services/job_repository.py</code> &mdash; <code>list_by_user()</code> (line 158) &mdash; SQL: <code>WHERE user_id = ?</code>
+    <code>service/api/routes.py</code> &mdash; <code>list_jobs()</code><br>
+    <code>service/services/job_repository.py</code> &mdash; <code>list_by_user()</code> &mdash; SQL: <code>WHERE user_id = ?</code>
   </div>
 </div>
 
@@ -701,12 +701,12 @@
     <strong>422</strong>: Business rule violation (unknown asset, past start_time, bad duration, etc.).
   </p>
   <div class="files">
-    <code>service/api/error_handlers.py</code> &mdash; remaps Pydantic <code>RequestValidationError</code> from 422 to <strong>400</strong> (line 19)<br>
-    <code>service/api/dependencies.py</code> &mdash; <code>get_current_user()</code> raises <strong>401</strong> (line 29)<br>
-    <code>service/api/routes.py</code> &mdash; <strong>404</strong> on missing job (line 40), <strong>400</strong> on missing key (line 55)<br>
-    <code>service/services/validation_service.py</code> &mdash; returns <strong>422</strong> for each business rule (lines 41-63)<br>
-    <code>service/services/job_orchestrator.py</code> &mdash; returns <strong>409</strong> on overlap (line 83)<br>
-    <code>service/constants.py</code> &mdash; all status codes are named constants (lines 13-19)
+    <code>service/api/error_handlers.py</code> &mdash; remaps Pydantic <code>RequestValidationError</code> from 422 to <strong>400</strong><br>
+    <code>service/api/dependencies.py</code> &mdash; <code>get_current_user()</code> raises <strong>401</strong><br>
+    <code>service/api/routes.py</code> &mdash; <strong>404</strong> on missing job, <strong>400</strong> on missing/invalid key<br>
+    <code>service/services/validation_service.py</code> &mdash; returns <strong>422</strong> for each business rule<br>
+    <code>service/services/job_orchestrator.py</code> &mdash; returns <strong>409</strong> on overlap<br>
+    All status codes use Python&rsquo;s <code>http.HTTPStatus</code> enum directly at call sites (no custom constants).
   </div>
 </div>
 
@@ -717,9 +717,9 @@
   <h4><span class="req-tag section">&sect;4.2</span> Bearer token auth on all /api/* endpoints</h4>
   <p>Tokens from <code>seed.json</code>. All API routes use <code>Depends(get_current_user)</code>.</p>
   <div class="files">
-    <code>service/api/dependencies.py</code> &mdash; <code>get_current_user()</code> (line 29) &mdash; extracts <code>Bearer</code> prefix, resolves via <code>AuthProvider</code><br>
-    <code>service/services/auth_service.py</code> &mdash; <code>TokenAuthService.authenticate()</code> (line 21) &mdash; looks up <code>USERS_BY_TOKEN</code><br>
-    <code>service/config.py</code> &mdash; <code>USERS_BY_TOKEN</code> dict built from <code>seed.json</code> (line 22)
+    <code>service/api/dependencies.py</code> &mdash; <code>get_current_user()</code> &mdash; extracts <code>Bearer</code> prefix, resolves via <code>AuthProvider</code><br>
+    <code>service/services/auth_service.py</code> &mdash; <code>TokenAuthService.authenticate()</code> &mdash; looks up <code>USERS_BY_TOKEN</code><br>
+    <code>service/config.py</code> &mdash; <code>USERS_BY_TOKEN</code> dict built from <code>seed.json</code>
   </div>
 </div>
 
@@ -727,8 +727,8 @@
   <h4><span class="req-tag section">&sect;4.2</span> Cross-user access returns 404 (not 200/403)</h4>
   <p>Bob reading Alice's job returns 404 because the SQL query includes <code>AND user_id = ?</code>.</p>
   <div class="files">
-    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_FIND_BY_ID</code> (line 68): <code>WHERE id = ? AND user_id = ?</code><br>
-    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_LIST_BY_USER</code> (line 70): <code>WHERE user_id = ?</code>
+    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_FIND_BY_ID</code>: <code>WHERE id = ? AND user_id = ?</code><br>
+    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_LIST_BY_USER</code>: <code>WHERE user_id = ?</code>
   </div>
 </div>
 
@@ -739,8 +739,8 @@
   <h4><span class="req-tag section">&sect;4.3</span> Four states: PENDING, RUNNING, COMPLETED, FAILED</h4>
   <p>Enum-backed states with transition guard. Invalid transitions are logged and silently ignored.</p>
   <div class="files">
-    <code>service/models.py</code> &mdash; <code>JobState</code> enum (line 25), <code>VALID_TRANSITIONS</code> dict (line 32), <code>is_valid_transition()</code> guard (line 38)<br>
-    <code>service/constants.py</code> &mdash; <code>STATE_PENDING</code>, <code>STATE_RUNNING</code>, <code>STATE_COMPLETED</code>, <code>STATE_FAILED</code> (lines 69-72)
+    <code>service/models.py</code> &mdash; <code>JobState</code> enum, <code>VALID_TRANSITIONS</code> dict, <code>is_valid_transition()</code> guard<br>
+    <code>service/constants.py</code> &mdash; <code>STATE_PENDING</code>, <code>STATE_RUNNING</code>, <code>STATE_COMPLETED</code>, <code>STATE_FAILED</code>
   </div>
 </div>
 
@@ -748,10 +748,10 @@
   <h4><span class="req-tag section">&sect;4.3</span> Invalid transitions ignored (logged, not crashed)</h4>
   <p>Unknown job_ids from MQTT are also logged and ignored.</p>
   <div class="files">
-    <code>service/services/broker_service.py</code> &mdash; <code>_on_message()</code> (line 91):<br>
-    &bull; Unknown <code>job_id</code> &rarr; log warning, return (line 108)<br>
-    &bull; Invalid transition &rarr; log warning, return (line 115)<br>
-    &bull; Malformed JSON &rarr; log warning, return (line 97)
+    <code>service/services/broker_service.py</code> &mdash; <code>_on_message()</code>:<br>
+    &bull; Unknown <code>job_id</code> &rarr; log warning, return<br>
+    &bull; Invalid transition &rarr; log warning, return<br>
+    &bull; Malformed JSON &rarr; log warning, return
   </div>
 </div>
 
@@ -764,39 +764,39 @@
     <tr><th>Rule</th><th>Code Location</th><th>Status Code</th></tr>
     <tr>
       <td><code>asset_id</code> must exist in seed.json</td>
-      <td><code>validation_service.py</code> line 41</td>
+      <td><code>validation_service.py</code> &mdash; <code>validate()</code></td>
       <td>422</td>
     </tr>
     <tr>
       <td><code>start_time</code> must be in the future</td>
-      <td><code>validation_service.py</code> line 47</td>
+      <td><code>validation_service.py</code> &mdash; <code>validate()</code></td>
       <td>422</td>
     </tr>
     <tr>
       <td><code>start_time &lt; end_time</code></td>
-      <td><code>validation_service.py</code> line 50</td>
+      <td><code>validation_service.py</code> &mdash; <code>validate()</code></td>
       <td>422</td>
     </tr>
     <tr>
       <td>Duration &ge; 15 min, &le; 4 hours</td>
-      <td><code>validation_service.py</code> lines 53-57</td>
+      <td><code>validation_service.py</code> &mdash; <code>validate()</code></td>
       <td>422</td>
     </tr>
     <tr>
       <td><code>operation</code> non-empty, &le; 64 chars</td>
-      <td><code>validation_service.py</code> line 59</td>
+      <td><code>validation_service.py</code> &mdash; <code>validate()</code></td>
       <td>422</td>
     </tr>
     <tr>
       <td>Max 10 active (PENDING+RUNNING) jobs per user</td>
-      <td><code>validation_service.py</code> line 62</td>
+      <td><code>validation_service.py</code> &mdash; <code>validate()</code></td>
       <td>422</td>
     </tr>
   </table>
   <div class="files">
-    <code>service/services/validation_service.py</code> &mdash; <code>JobValidationService.validate()</code> (line 31)<br>
+    <code>service/services/validation_service.py</code> &mdash; <code>JobValidationService.validate()</code><br>
     <code>service/constants.py</code> &mdash; all limits: <code>MAX_ACTIVE_JOBS_PER_USER=10</code>, <code>MIN_JOB_DURATION=15min</code>, <code>MAX_JOB_DURATION=4h</code>, <code>OPERATION_MAX_LENGTH=64</code><br>
-    <code>service/constants.py</code> &mdash; <code>ErrorMessages</code> class (line 91) &mdash; all error message templates
+    <code>service/constants.py</code> &mdash; <code>ErrorMessages</code> class &mdash; all error message templates
   </div>
 </div>
 
@@ -804,8 +804,8 @@
   <h4><span class="req-tag section">&sect;4.4</span> ISO-8601 timestamp parsing (400 on bad format)</h4>
   <p>Pydantic's <code>datetime</code> field handles parsing. Invalid timestamps produce <code>RequestValidationError</code>, remapped to <strong>400</strong>.</p>
   <div class="files">
-    <code>service/models.py</code> &mdash; <code>JobCreate.start_time</code> and <code>end_time</code> are <code>datetime</code> fields (lines 53-54)<br>
-    <code>service/api/error_handlers.py</code> &mdash; <code>RequestValidationError</code> &rarr; 400 (line 19)
+    <code>service/models.py</code> &mdash; <code>JobCreate.start_time</code> and <code>end_time</code> are <code>datetime</code> fields with UTC-only <code>field_validator</code><br>
+    <code>service/api/error_handlers.py</code> &mdash; <code>RequestValidationError</code> &rarr; 400
   </div>
 </div>
 
@@ -816,8 +816,8 @@
   <h4><span class="req-tag section">&sect;4.5</span> Half-open interval overlap: [start, end)</h4>
   <p>SQL: <code>WHERE start_time &lt; ? AND end_time &gt; ?</code> (comparing against proposed end and start).</p>
   <div class="files">
-    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_CHECK_OVERLAP</code> (line 55): checks active jobs on same <code>asset_id</code> with overlapping windows<br>
-    <code>service/services/job_repository.py</code> &mdash; <code>insert_if_no_overlap()</code> (line 112): atomic check+insert inside <code>BEGIN IMMEDIATE</code>
+    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_CHECK_OVERLAP</code>: checks active jobs on same <code>asset_id</code> with overlapping windows<br>
+    <code>service/services/job_repository.py</code> &mdash; <code>insert_if_no_overlap()</code>: atomic check+insert inside <code>BEGIN IMMEDIATE</code>
   </div>
 </div>
 
@@ -828,9 +828,9 @@
     Concurrent callers block on <code>busy_timeout</code>, then see the committed state.
   </p>
   <div class="files">
-    <code>service/services/job_repository.py</code> &mdash; <code>insert_if_no_overlap()</code> (line 114): <code>conn.execute("BEGIN IMMEDIATE")</code><br>
-    <code>service/services/job_repository.py</code> &mdash; <code>SQLITE_BUSY_TIMEOUT_MS = 5000</code> via <code>constants.py</code> line 84<br>
-    <code>tests/test_core.py</code> &mdash; <code>test_atomic_overlap_exactly_one_wins()</code> (line 54) &mdash; fires 10 parallel async requests
+    <code>service/services/job_repository.py</code> &mdash; <code>insert_if_no_overlap()</code>: <code>conn.execute("BEGIN IMMEDIATE")</code><br>
+    <code>service/services/job_repository.py</code> &mdash; <code>SQLITE_BUSY_TIMEOUT_MS</code> via <code>constants.py</code><br>
+    <code>tests/test_core.py</code> &mdash; <code>test_atomic_overlap_exactly_one_wins()</code> &mdash; fires 10 parallel async requests
   </div>
 </div>
 
@@ -841,10 +841,10 @@
   <h4><span class="req-tag section">&sect;4.6</span> Same (user_id, Idempotency-Key) returns same job</h4>
   <p>UNIQUE constraint + pre-check before insert. First body is canonical (no replay-body matching).</p>
   <div class="files">
-    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_CREATE_TABLE</code> (line 42): <code>UNIQUE(user_id, idempotency_key)</code><br>
-    <code>service/services/job_repository.py</code> &mdash; <code>find_by_idempotency_key()</code> (line 100)<br>
-    <code>service/services/job_orchestrator.py</code> &mdash; idempotent replay check (line 52): returns existing job with 201<br>
-    <code>tests/test_core.py</code> &mdash; <code>test_idempotency_same_key_returns_same_job()</code> (line 30)
+    <code>service/services/job_repository.py</code> &mdash; <code>_SQL_CREATE_TABLE</code>: <code>UNIQUE(user_id, idempotency_key)</code><br>
+    <code>service/services/job_repository.py</code> &mdash; <code>find_by_idempotency_key()</code><br>
+    <code>service/services/job_orchestrator.py</code> &mdash; idempotent replay check: returns existing job with 201<br>
+    <code>tests/test_core.py</code> &mdash; <code>test_idempotency_same_key_returns_same_job()</code>
   </div>
 </div>
 
@@ -852,15 +852,15 @@
   <h4><span class="req-tag section">&sect;4.6</span> Key scoped per user (cross-user key collision creates independent jobs)</h4>
   <p>The UNIQUE constraint is on <code>(user_id, idempotency_key)</code>, not <code>idempotency_key</code> alone.</p>
   <div class="files">
-    <code>service/services/job_repository.py</code> &mdash; <code>UNIQUE(user_id, idempotency_key)</code> (line 42)
+    <code>service/services/job_repository.py</code> &mdash; <code>UNIQUE(user_id, idempotency_key)</code>
   </div>
 </div>
 
 <div class="req-card green">
   <h4><span class="req-tag section">&sect;4.6</span> Missing or too-long key returns 400</h4>
   <div class="files">
-    <code>service/api/routes.py</code> &mdash; empty check (line 54), length check (line 59)<br>
-    <code>service/constants.py</code> &mdash; <code>IDEMPOTENCY_KEY_MAX_LENGTH = 100</code> (line 31)
+    <code>service/api/routes.py</code> &mdash; empty check + length check in <code>create_job()</code><br>
+    <code>service/constants.py</code> &mdash; <code>IDEMPOTENCY_KEY_MAX_LENGTH = 100</code>
   </div>
 </div>
 
@@ -871,30 +871,30 @@
   <h4><span class="req-tag section">&sect;4.7</span> Publish dispatch with 5-field payload after persistence</h4>
   <p>Payload: <code>{job_id, asset_id, start_time, end_time, operation}</code>. Published <em>only after</em> successful commit.</p>
   <div class="files">
-    <code>service/services/broker_service.py</code> &mdash; <code>publish_dispatch()</code> (line 64): builds 5-field payload, publishes to <code>jobs/dispatch</code><br>
-    <code>service/services/job_orchestrator.py</code> &mdash; dispatch called after <code>insert_if_no_overlap()</code> returns successfully (line 86)
+    <code>service/services/broker_service.py</code> &mdash; <code>publish_dispatch()</code>: builds 5-field payload, publishes to <code>jobs/dispatch</code><br>
+    <code>service/services/job_orchestrator.py</code> &mdash; dispatch called after <code>insert_if_no_overlap()</code> returns successfully
   </div>
 </div>
 
 <div class="req-card green">
   <h4><span class="req-tag section">&sect;4.7</span> Subscribe to jobs/result and process state transitions</h4>
   <div class="files">
-    <code>service/services/broker_service.py</code> &mdash; <code>_on_connect()</code> (line 81): subscribes to <code>jobs/result</code><br>
-    <code>service/services/broker_service.py</code> &mdash; <code>_on_message()</code> (line 91): validates transition, updates state, invokes callback
+    <code>service/services/broker_service.py</code> &mdash; <code>_on_connect()</code>: subscribes to <code>jobs/result</code><br>
+    <code>service/services/broker_service.py</code> &mdash; <code>_on_message()</code>: validates transition, updates state, invokes callback
   </div>
 </div>
 
 <div class="req-card green">
   <h4><span class="req-tag section">&sect;4.7</span> Unknown job_id &rarr; log and ignore</h4>
   <div class="files">
-    <code>service/services/broker_service.py</code> &mdash; line 108: <code>log.warning(f"result for unknown job_id={job_id}")</code> + <code>return</code>
+    <code>service/services/broker_service.py</code> &mdash; <code>_on_message()</code>: <code>log.warning(f"result for unknown job_id={job_id}")</code> + <code>return</code>
   </div>
 </div>
 
 <div class="req-card green">
   <h4><span class="req-tag section">&sect;4.7</span> Invalid transition &rarr; log and ignore</h4>
   <div class="files">
-    <code>service/services/broker_service.py</code> &mdash; line 111-116: calls <code>is_valid_transition()</code>, logs warning + returns if invalid
+    <code>service/services/broker_service.py</code> &mdash; <code>_on_message()</code>: calls <code>is_valid_transition()</code>, logs warning + returns if invalid
   </div>
 </div>
 
@@ -905,7 +905,7 @@
   <h4><span class="req-tag section">&sect;4.8</span> Socket.IO at /socket.io/ with token-based auth</h4>
   <p>Token via query string: <code>?token=&lt;bearer&gt;</code>. Invalid token &rarr; <code>ConnectionRefusedError</code>.</p>
   <div class="files">
-    <code>service/services/notifier_service.py</code> &mdash; <code>connect</code> handler (line 30): parses <code>QUERY_STRING</code>, validates token against <code>USERS_BY_TOKEN</code>
+    <code>service/services/notifier_service.py</code> &mdash; <code>connect</code> handler: parses <code>QUERY_STRING</code>, validates token against <code>USERS_BY_TOKEN</code>
   </div>
 </div>
 
@@ -913,16 +913,16 @@
   <h4><span class="req-tag section">&sect;4.8</span> Per-user rooms: events scoped to owner only</h4>
   <p>Room name: <code>user:&lt;user_id&gt;</code>. Bob never receives Alice's events.</p>
   <div class="files">
-    <code>service/services/notifier_service.py</code> &mdash; <code>enter_room(sid, room)</code> (line 42), <code>notify_job_update()</code> emits to room only (line 52)<br>
-    <code>service/constants.py</code> &mdash; <code>SOCKETIO_ROOM_PREFIX = "user:"</code> (line 62)
+    <code>service/services/notifier_service.py</code> &mdash; <code>enter_room(sid, room)</code>, <code>notify_job_update()</code> emits to room only<br>
+    <code>service/constants.py</code> &mdash; <code>SOCKETIO_ROOM_PREFIX = "user:"</code>
   </div>
 </div>
 
 <div class="req-card green">
   <h4><span class="req-tag section">&sect;4.8</span> Event: job_update with {job_id, state, timestamp}</h4>
   <div class="files">
-    <code>service/app.py</code> &mdash; <code>_on_mqtt_result()</code> (line 83): builds <code>{job_id, state, timestamp}</code> payload<br>
-    <code>service/services/notifier_service.py</code> &mdash; <code>notify_job_update()</code> (line 50): <code>sio.emit("job_update", payload, room=room)</code>
+    <code>service/app.py</code> &mdash; <code>_on_mqtt_result()</code>: builds <code>{job_id, state, timestamp}</code> payload<br>
+    <code>service/services/notifier_service.py</code> &mdash; <code>notify_job_update()</code>: <code>sio.emit("job_update", payload, room=room)</code>
   </div>
 </div>
 
@@ -931,12 +931,12 @@
 
 <div class="req-card green">
   <h4><span class="req-tag section">&sect;6</span> Python 3.10+ with pinned dependencies</h4>
-  <div class="files"><code>requirements.txt</code> &mdash; all dependencies pinned</div>
+  <div class="files"><code>requirements.txt</code> &mdash; all dependencies pinned to exact versions (e.g. <code>fastapi==0.104.1</code>)</div>
 </div>
 
 <div class="req-card green">
   <h4><span class="req-tag section">&sect;6</span> Modular package layout</h4>
-  <p>20 source files across 4 sub-packages: <code>service/</code>, <code>service/providers/</code>, <code>service/services/</code>, <code>service/api/</code>.</p>
+  <p>23 source files across 4 sub-packages: <code>service/</code>, <code>service/providers/</code>, <code>service/services/</code>, <code>service/api/</code>.</p>
   <div class="files">See <a href="#walkthrough">Code Walkthrough</a> below for full listing.</div>
 </div>
 
@@ -944,7 +944,7 @@
   <h4><span class="req-tag section">&sect;6</span> Structured JSON logging</h4>
   <p>One JSON object per log line with <code>ts</code>, <code>level</code>, <code>service</code>, <code>msg</code> fields.</p>
   <div class="files">
-    <code>service/logger.py</code> &mdash; <code>JSONFormatter</code> (line 13), <code>get_logger(service_name)</code> (line 42)<br>
+    <code>service/logger.py</code> &mdash; <code>JSONFormatter</code>, <code>get_logger(service_name)</code><br>
     Every service calls <code>get_logger("name")</code> at module level.
   </div>
 </div>
@@ -953,7 +953,7 @@
   <h4><span class="req-tag section">&sect;6</span> Configuration via environment variables</h4>
   <p>No hard-coded paths or secrets. All tunables: <code>MQTT_HOST</code>, <code>MQTT_PORT</code>, <code>DB_PATH</code>, <code>PORT</code>, <code>SEED_PATH</code>.</p>
   <div class="files">
-    <code>service/config.py</code> &mdash; <code>os.environ.get()</code> with sensible defaults (lines 11-18)
+    <code>service/config.py</code> &mdash; <code>os.environ.get()</code> with sensible defaults
   </div>
 </div>
 
@@ -964,17 +964,17 @@
     <tr>
       <td>Idempotency: same key returns same job</td>
       <td><code>tests/test_core.py</code></td>
-      <td><code>test_idempotency_same_key_returns_same_job()</code> line 30</td>
+      <td><code>test_idempotency_same_key_returns_same_job()</code></td>
     </tr>
     <tr>
       <td>Atomic concurrency: 10 parallel &rarr; 1&times;201</td>
       <td><code>tests/test_core.py</code></td>
-      <td><code>test_atomic_overlap_exactly_one_wins()</code> line 54</td>
+      <td><code>test_atomic_overlap_exactly_one_wins()</code></td>
     </tr>
     <tr>
       <td>MQTT round-trip: submit &rarr; COMPLETED</td>
       <td><code>tests/test_core.py</code></td>
-      <td><code>test_mqtt_roundtrip_job_reaches_completed()</code> line 84</td>
+      <td><code>test_mqtt_roundtrip_job_reaches_completed()</code></td>
     </tr>
   </table>
   <div class="files">
@@ -995,14 +995,13 @@
 
 <h3 id="walk-const">service/constants.py</h3>
 <p>
-  Centralizes <strong>every magic string and number</strong> in the application.
-  No other module hardcodes HTTP status codes, MQTT topic names, validation limits,
-  Socket.IO event names, or error message templates. This makes the codebase
-  greppable, refactor-safe, and easy to audit.
+  Centralizes <strong>magic strings and domain numbers</strong> in the application.
+  MQTT topic names, validation limits, Socket.IO event names, and error message
+  templates are all defined here. HTTP status codes use Python&rsquo;s
+  <code>http.HTTPStatus</code> enum directly at call sites.
 </p>
 <table>
   <tr><th>Category</th><th>Examples</th></tr>
-  <tr><td>HTTP Status Codes</td><td><code>HTTP_OK=200</code>, <code>HTTP_CREATED=201</code>, <code>HTTP_BAD_REQUEST=400</code>, <code>HTTP_UNAUTHORIZED=401</code>, <code>HTTP_NOT_FOUND=404</code>, <code>HTTP_CONFLICT=409</code>, <code>HTTP_UNPROCESSABLE=422</code></td></tr>
   <tr><td>HTTP Headers</td><td><code>HEADER_IDEMPOTENCY_KEY="Idempotency-Key"</code>, <code>BEARER_PREFIX="Bearer "</code></td></tr>
   <tr><td>Validation Limits</td><td><code>IDEMPOTENCY_KEY_MAX_LENGTH=100</code>, <code>MAX_ACTIVE_JOBS_PER_USER=10</code>, <code>MIN_JOB_DURATION=15min</code>, <code>MAX_JOB_DURATION=4h</code></td></tr>
   <tr><td>MQTT</td><td><code>TOPIC_DISPATCH="jobs/dispatch"</code>, <code>TOPIC_RESULT="jobs/result"</code>, <code>MQTT_QOS=0</code></td></tr>
@@ -1014,8 +1013,8 @@
 <h3 id="walk-config">service/config.py</h3>
 <p>
   Loads all configuration from environment variables with sensible defaults.
-  Parses <code>seed.json</code> at import time into three lookup structures:
-  <code>USERS_BY_TOKEN</code>, <code>USERS_BY_ID</code>, <code>VALID_ASSETS</code>.
+  Parses <code>seed.json</code> at import time into two lookup structures:
+  <code>USERS_BY_TOKEN</code> and <code>VALID_ASSETS</code>.
 </p>
 
 <h3 id="walk-models">service/models.py</h3>
@@ -1027,7 +1026,7 @@
   <li><code>VALID_TRANSITIONS</code> &mdash; dict mapping each non-terminal state to its allowed successors</li>
   <li><code>is_valid_transition(current, proposed)</code> &mdash; guard function used by <code>MQTTBrokerService</code></li>
   <li><code>JobCreate</code> &mdash; Pydantic model for inbound POST body</li>
-  <li><code>JobResponse</code> &mdash; Pydantic model for outbound job representation</li>
+  <li><code>JobResponse</code> &mdash; Pydantic model for outbound job representation, used as <code>response_model</code> on all job routes to strip internal fields</li>
 </ul>
 
 <h3 id="walk-providers">service/providers/ &mdash; Protocol Definitions</h3>
@@ -1190,53 +1189,56 @@
 
 <!-- ============== VERIFY OUTPUT ============== -->
 <h2 id="verify">verify.py Output</h2>
+<p>Verbatim output from <code>verify-output.txt</code> (job IDs vary per run):</p>
 <pre><code>Running verification against http://localhost:8000
 Using Alice (user-001) and Bob (user-002) from data/seed.json
 
- 1. /health returns 200
-    PASS  health responds 200
+1. /health returns 200
+  PASS  health responds 200 &mdash; got 200
 
- 2. Authentication
-    PASS  GET /api/jobs without token returns 401
-    PASS  GET /api/jobs with invalid token returns 401
-    PASS  GET /api/jobs with valid token returns 200
+2. Authentication
+  PASS  GET /api/jobs without token returns 401 &mdash; got 401
+  PASS  GET /api/jobs with invalid token returns 401 &mdash; got 401
+  PASS  GET /api/jobs with valid token returns 200 &mdash; got 200
 
- 3. Submit a valid job and read it back
-    PASS  POST /api/jobs returns 201
-    PASS  response includes id
-    PASS  response includes state — state=PENDING
-    PASS  GET /api/jobs/{id} returns 200
+3. Submit a valid job and read it back
+  PASS  POST /api/jobs returns 201 &mdash; job_id=fbc98334-5723-45a8-9e3c-ff63f583a9b9
+  PASS  response includes id
+  PASS  response includes state &mdash; state=PENDING
+  PASS  GET /api/jobs/{id} returns 200 &mdash; got 200
 
- 4. Idempotency-Key returns the same job on a second POST
-    PASS  Same Idempotency-Key returns same job id
-    PASS  Listing contains the job exactly once
+4. Idempotency-Key returns the same job on a second POST
+  PASS  Same Idempotency-Key returns same job id &mdash; r1.id=5fbeb6d9-d6a3-4d75-bddc-955120cfd36e r2.id=5fbeb6d9-d6a3-4d75-bddc-955120cfd36e
+  PASS  Listing contains the job exactly once &mdash; count=1
 
- 5. Overlapping job on same asset returns 409
-    PASS  Overlap returns 409
+5. Submitting a job that overlaps an existing job on the same asset returns 409
+  PASS  Overlap returns 409 &mdash; got 409
 
- 6. 10 parallel overlapping submissions — exactly 1 wins
-    PASS  Exactly 1 succeeded (201) — 1×201, 9×409
-    PASS  Other 9 returned 409
+6. 10 parallel overlapping submissions on the same asset &mdash; exactly 1 wins
+  PASS  Exactly 1 succeeded (201) &mdash; got 1&times; 201, 9&times; 409, others=[201, 409, 409, 409, 409, 409, 409, 409, 409, 409]
+  PASS  Other 9 returned 409 &mdash; got 9&times; 409
 
- 7. Cross-user access — Bob cannot read Alice's job
-    PASS  Bob reading Alice's job returns 404
-    PASS  Bob's list does not include Alice's job
+7. Cross-user access &mdash; Bob cannot read Alice's job
+  PASS  Bob reading Alice's job returns 404 (not 200/403) &mdash; got 404
+  PASS  Bob's list does not include Alice's job &mdash; bob has 0 jobs
 
- 8. Validation: unknown asset → 422; start in past → 422; bad duration → 422
-    PASS  Unknown asset_id returns 422
-    PASS  start_time in past returns 422
-    PASS  duration < 15min returns 422
+8. Validation: unknown asset &rarr; 422; start in past &rarr; 422; bad duration &rarr; 422
+  PASS  Unknown asset_id returns 422 &mdash; got 422
+  PASS  start_time in past returns 422 &mdash; got 422
+  PASS  duration &lt; 15min returns 422 &mdash; got 422
 
- 9. End-to-end: submit → worker → state becomes COMPLETED
-    PASS  Job reaches COMPLETED via MQTT round-trip
+9. End-to-end: submit &rarr; worker processes &rarr; state becomes COMPLETED
+  info  submitted job 66e5d7e7-e3dd-448f-8b7f-60e34f011e6f; polling for COMPLETED...
+  PASS  Job reaches COMPLETED via MQTT round-trip &mdash; final state=COMPLETED
 
-10. Worker failure path: asset-fault transitions to FAILED
-    PASS  Job on asset-fault transitions to FAILED
-    PASS  error_message is populated on FAILED
+10. Worker failure path: jobs on 'asset-fault' transition to FAILED
+  PASS  Job on asset-fault transitions to FAILED &mdash; final state=FAILED
+  PASS  error_message is populated on FAILED &mdash; error_message='Simulated worker failure (asset-fault)'
 
-11. Socket.IO: each user receives only their own job_update events
-    PASS  Alice receives job_update events for her own job
-    PASS  Bob does NOT receive Alice's job events
+11. SocketIO: each user receives only their own job_update events
+  info  alice submitted 29384f62-3da1-4f93-ad65-1344d58b4052
+  PASS  Alice receives job_update events for her own job &mdash; received 2 events: ['RUNNING', 'COMPLETED']
+  PASS  Bob does NOT receive Alice's job events &mdash; bob received 0 unexpected events
 
 ============================================================
 23/23 scenarios passed</code></pre>

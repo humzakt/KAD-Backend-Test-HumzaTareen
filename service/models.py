@@ -9,10 +9,10 @@ Domain models, Pydantic schemas, and state machine definition.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from service.constants import (
     STATE_COMPLETED,
@@ -51,6 +51,14 @@ class JobCreate(BaseModel):
     operation: str
     start_time: datetime
     end_time: datetime
+
+    @field_validator("start_time", "end_time", mode="after")
+    @classmethod
+    def must_be_utc(cls, v: datetime) -> datetime:
+        """Reject naive datetimes and non-UTC offsets (spec: Z or +00:00)."""
+        if v.tzinfo is None or v.utcoffset() != timezone.utc.utcoffset(None):
+            raise ValueError("Timestamps must be UTC (Z or +00:00)")
+        return v
 
 
 class JobResponse(BaseModel):

@@ -1,27 +1,15 @@
 """
 Application-wide constants.
 
-Centralizes all magic strings, magic numbers, MQTT topics, HTTP header names,
-Socket.IO event names, validation limits, and timestamp formats.
-No other module should hardcode any of these values.
+Centralizes magic strings, MQTT topics, HTTP header names, Socket.IO event
+names, validation limits, and timestamp formats.  HTTP status codes use
+Python's ``http.HTTPStatus`` directly at call sites.
 """
 from datetime import timedelta
 
 # ---------------------------------------------------------------------------
-# HTTP Status Codes
-# ---------------------------------------------------------------------------
-HTTP_OK = 200
-HTTP_CREATED = 201
-HTTP_BAD_REQUEST = 400
-HTTP_UNAUTHORIZED = 401
-HTTP_NOT_FOUND = 404
-HTTP_CONFLICT = 409
-HTTP_UNPROCESSABLE = 422
-
-# ---------------------------------------------------------------------------
 # HTTP Headers
 # ---------------------------------------------------------------------------
-HEADER_AUTHORIZATION = "Authorization"
 HEADER_IDEMPOTENCY_KEY = "Idempotency-Key"
 BEARER_PREFIX = "Bearer "
 

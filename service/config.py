@@ -20,5 +20,4 @@ SEED_PATH = os.environ.get(
 _seed = json.loads(Path(SEED_PATH).read_text())
 
 USERS_BY_TOKEN: dict[str, dict] = {u["token"]: u for u in _seed["users"]}
-USERS_BY_ID: dict[str, dict] = {u["user_id"]: u for u in _seed["users"]}
 VALID_ASSETS: set[str] = {a["asset_id"] for a in _seed["assets"]}

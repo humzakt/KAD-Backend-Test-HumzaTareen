@@ -19,7 +19,6 @@ import uuid
 import httpx
 
 from tests.conftest import (
-    ALICE_TOKEN,
     BASE_URL,
     auth_headers,
     future_window,
