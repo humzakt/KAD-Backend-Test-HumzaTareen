@@ -56,10 +56,6 @@ asgi_app = socketio.ASGIApp(sio, fastapi_app)
 # ---------------------------------------------------------------------------
 registry = ServiceRegistry()
 
-# Remove stale DB on fresh start so verify.py is deterministic
-if os.path.exists(config.DB_PATH):
-    os.remove(config.DB_PATH)
-
 repo = SQLiteJobRepository()
 notifier = SocketIONotifierService(sio)
 
@@ -93,7 +89,12 @@ def _on_mqtt_result(updated_job: dict) -> None:
         future = asyncio.run_coroutine_threadsafe(
             notifier_svc.notify_job_update(user_id, payload), _loop,
         )
-        future.result(timeout=C.SOCKETIO_EMIT_TIMEOUT_SECONDS)
+        try:
+            future.result(timeout=C.SOCKETIO_EMIT_TIMEOUT_SECONDS)
+        except Exception:
+            log.exception(
+                f"failed to emit job_update for job={updated_job['id']}",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +104,8 @@ def _on_mqtt_result(updated_job: dict) -> None:
 async def startup() -> None:
     global _loop
     _loop = asyncio.get_running_loop()
+    if os.path.exists(config.DB_PATH):
+        os.remove(config.DB_PATH)
     repo.initialize()
     broker.start(on_result=_on_mqtt_result)
     log.info(f"service started on port {config.PORT}")

@@ -81,7 +81,7 @@ class SQLiteJobRepository:
 
     def _conn(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn"):
-            conn = sqlite3.connect(config.DB_PATH, check_same_thread=False)
+            conn = sqlite3.connect(config.DB_PATH)
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(f"PRAGMA busy_timeout={C.SQLITE_BUSY_TIMEOUT_MS}")
@@ -93,8 +93,13 @@ class SQLiteJobRepository:
         return {k: row[k] for k in row.keys()}
 
     def initialize(self) -> None:
-        self._conn().execute(_SQL_CREATE_TABLE)
-        self._conn().commit()
+        conn = self._conn()
+        conn.execute(_SQL_CREATE_TABLE)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_jobs_overlap "
+            "ON jobs (asset_id, state, start_time, end_time)",
+        )
+        conn.commit()
         log.info("database initialized")
 
     def find_by_idempotency_key(self, user_id: str, key: str) -> dict | None:
@@ -110,18 +115,34 @@ class SQLiteJobRepository:
         return row["c"]
 
     def insert_if_no_overlap(
-        self, job: dict,
+        self, job: dict, max_active_jobs: int = 0,
     ) -> tuple[str, dict | None]:
         """Atomically check for overlap and insert.
 
+        When *max_active_jobs* > 0, the active-job count is verified
+        inside the same write-locked transaction.
+
         Returns ``("created", job)`` on success,
         ``("overlap", None)`` on time-window conflict,
+        ``("max_active", None)`` if the user has too many active jobs,
         ``("idempotent", existing_job)`` if a concurrent request
         already inserted the same ``(user_id, idempotency_key)``.
         """
         conn = self._conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
+            if max_active_jobs > 0:
+                row = conn.execute(
+                    _SQL_COUNT_ACTIVE,
+                    (job["user_id"], *C.ACTIVE_STATES),
+                ).fetchone()
+                if row["c"] >= max_active_jobs:
+                    conn.rollback()
+                    log.info(
+                        f"max active jobs reached for user={job['user_id']}",
+                    )
+                    return "max_active", None
+
             overlap = conn.execute(
                 _SQL_CHECK_OVERLAP,
                 (

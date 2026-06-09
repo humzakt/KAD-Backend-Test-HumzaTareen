@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from service import constants as C
 from service.api.dependencies import get_current_user, get_registry
 from service.models import JobCreate, JobResponse
+from service.providers.broker import MessageBroker
 from service.services.job_orchestrator import JobOrchestrator
 
 health_router = APIRouter()
@@ -23,7 +24,8 @@ api_router = APIRouter(prefix="/api")
 
 @health_router.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    broker: MessageBroker = get_registry().resolve(MessageBroker)
+    return {"status": "ok", "mqtt_connected": broker.is_connected()}
 
 
 @api_router.get("/jobs", response_model=list[JobResponse])

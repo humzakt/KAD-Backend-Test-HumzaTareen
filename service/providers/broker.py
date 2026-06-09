@@ -22,3 +22,7 @@ class MessageBroker(Protocol):
     def publish_dispatch(self, job: dict) -> None:
         """Publish a job dispatch message to the worker."""
         ...
+
+    def is_connected(self) -> bool:
+        """Return ``True`` if the broker connection is alive."""
+        ...

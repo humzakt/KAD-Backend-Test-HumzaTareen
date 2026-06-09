@@ -1,14 +1,16 @@
 """
 JobValidationService -- business rule validation for job submissions.
 
-Enforces all rules from PDF section 4.4:
+Enforces rules from PDF section 4.4:
 
 - ``asset_id`` must exist in seed data
 - ``start_time`` must be in the future
 - ``start_time < end_time``
 - Duration between 15 minutes and 4 hours
 - ``operation`` is non-empty, max 64 chars
-- User may have at most 10 active jobs
+
+The active-job-count limit (max 10) is enforced atomically inside
+``insert_if_no_overlap`` under the same ``BEGIN IMMEDIATE`` lock.
 
 Returns ``(status_code, message)`` on failure, ``None`` on success.
 This separation keeps validation logic testable independently of HTTP.
@@ -33,7 +35,6 @@ class JobValidationService:
         self,
         body: JobCreate,
         user_id: str,
-        active_count: int,
     ) -> tuple[int, str] | None:
         """Validate a job creation request.
 
@@ -63,9 +64,5 @@ class JobValidationService:
         if not body.operation or len(body.operation) > C.OPERATION_MAX_LENGTH:
             log.info(f"rejected user={user_id}: invalid operation")
             return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.OPERATION_INVALID
-
-        if active_count >= C.MAX_ACTIVE_JOBS_PER_USER:
-            log.info(f"rejected user={user_id}: max active jobs reached")
-            return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.MAX_ACTIVE_JOBS
 
         return None

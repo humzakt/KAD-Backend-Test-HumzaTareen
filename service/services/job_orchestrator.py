@@ -55,9 +55,8 @@ class JobOrchestrator:
             log.info(f"idempotent replay key={idempotency_key}")
             return HTTPStatus.CREATED, existing
 
-        # Validation
-        active_count = self._repo.count_active_jobs(user_id)
-        error = self._validator.validate(body, user_id, active_count)
+        # Validation (active-job count checked atomically inside insert)
+        error = self._validator.validate(body, user_id)
         if error:
             status, message = error
             return status, message
@@ -78,10 +77,14 @@ class JobOrchestrator:
             "updated_at": now,
         }
 
-        # Atomic overlap check + insert
-        outcome, result = self._repo.insert_if_no_overlap(job)
+        # Atomic overlap check + active-job limit + insert
+        outcome, result = self._repo.insert_if_no_overlap(
+            job, max_active_jobs=C.MAX_ACTIVE_JOBS_PER_USER,
+        )
         if outcome == "overlap":
             return HTTPStatus.CONFLICT, C.ErrorMessages.OVERLAP_CONFLICT
+        if outcome == "max_active":
+            return HTTPStatus.UNPROCESSABLE_ENTITY, C.ErrorMessages.MAX_ACTIVE_JOBS
         if outcome == "idempotent":
             log.info(f"concurrent idempotent replay key={idempotency_key}")
             return HTTPStatus.CREATED, result

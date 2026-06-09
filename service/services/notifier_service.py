@@ -9,6 +9,8 @@ Implements :class:`~service.providers.notifier.RealtimeNotifier`.
 """
 from __future__ import annotations
 
+from urllib.parse import parse_qs
+
 import socketio
 
 from service import config
@@ -29,10 +31,8 @@ class SocketIONotifierService:
         @self._sio.event
         async def connect(sid: str, environ: dict, auth: object) -> None:
             qs = environ.get("QUERY_STRING", "")
-            params = dict(
-                pair.split("=", 1) for pair in qs.split("&") if "=" in pair
-            )
-            token = params.get(C.SOCKETIO_QUERY_TOKEN)
+            params = parse_qs(qs)
+            token = params.get(C.SOCKETIO_QUERY_TOKEN, [None])[0]
             user = config.USERS_BY_TOKEN.get(token) if token else None
             if not user:
                 log.warning("Socket.IO connection rejected (invalid token)")

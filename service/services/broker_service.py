@@ -61,6 +61,9 @@ class MQTTBrokerService:
             self._client.disconnect()
             log.info("disconnected from MQTT")
 
+    def is_connected(self) -> bool:
+        return self._client is not None and self._client.is_connected()
+
     def publish_dispatch(self, job: dict) -> None:
         payload = {
             C.FIELD_JOB_ID: job["id"],
